@@ -51,10 +51,13 @@ request.interceptors.response.use(
       const { status, data } = error.response
       switch (status) {
         case 401:
-          // Token 过期或无效，清除登录信息，跳转登录页
-          clearAuth()
-          ElMessage.error('登录已过期，请重新登录')
-          router.push('/login')
+          if (router.currentRoute.value.path === '/login') {
+            ElMessage.error(data?.message || '用户名或密码错误！')
+          } else {
+            clearAuth()
+            ElMessage.error('登录已过期，请重新登录')
+            router.push('/login')
+          }
           break
         case 403:
           ElMessage.error('权限不足，无法访问')
