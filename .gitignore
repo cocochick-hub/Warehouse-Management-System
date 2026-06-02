@@ -1,0 +1,35 @@
+# Node
+node_modules/
+npm-debug.log*
+
+# Build output
+dist/
+
+# IDE
+.trae/
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env.local
+.env.*.local
+
+# Java / Maven
+*.class
+*.jar
+*.war
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Logs
+*.log
+logs/
+
+# Local scripts
+*.bat
