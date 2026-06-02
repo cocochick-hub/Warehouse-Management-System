@@ -57,7 +57,7 @@
           <template #header>
             <div class="card-header">
               <span>待办任务清单</span>
-              <el-button text type="primary">查看全部</el-button>
+              <el-button text type="primary" @click="handleViewAll">查看全部</el-button>
             </div>
           </template>
           <el-table :data="todoList" stripe style="width: 100%">
@@ -77,7 +77,7 @@
             </el-table-column>
             <el-table-column prop="date" label="日期" width="110" />
             <el-table-column label="操作" width="90" fixed="right">
-              <el-button type="primary" link size="small">处理</el-button>
+              <el-button type="primary" link size="small" @click="handleAction(row)">处理</el-button>
             </el-table-column>
           </el-table>
         </el-card>
@@ -138,7 +138,7 @@
             <el-button type="success" size="large" @click="$router.push('/inventory/report')">
               <el-icon><DataBoard /></el-icon>查看库存
             </el-button>
-            <el-button size="large" @click="$router.push('/alert/threshold')">
+            <el-button type="warning" size="large" @click="$router.push('/alert/threshold')">
               <el-icon><WarningFilled /></el-icon>预警设置
             </el-button>
           </div>
@@ -149,12 +149,44 @@
 </template>
 
 <script setup>
-const todoList = [
-  { type: '入库', docNo: 'IN20240601001', supplier: '上海汽车零部件', status: '未入库', statusColor: 'info', date: '2024-06-01' },
-  { type: '入库', docNo: 'IN20240601002', supplier: '长春一汽配套', status: '部分完成', statusColor: 'warning', date: '2024-06-01' },
-  { type: '出库', docNo: 'OUT20240601001', supplier: '广州本田', status: '待出库', statusColor: 'primary', date: '2024-06-01' },
-  { type: '出库', docNo: 'OUT20240601002', supplier: '武汉东风', status: '待出库', statusColor: 'primary', date: '2024-06-01' }
-]
+import { ref, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
+import { getDashboardDataApi } from '@/api/dashboard'
+
+const router = useRouter()
+const todoList = ref([])
+
+function handleViewAll() {
+  router.push('/inbound/order')
+}
+
+function handleAction(row) {
+  if (row.type === '入库') {
+    router.push('/inbound/order')
+  } else {
+    router.push('/outbound/order')
+  }
+}
+
+function loadDashboardData() {
+  getDashboardDataApi().then(res => {
+    const data = res.data
+    todoList.value = data.pendingTasks.map(task => ({
+      type: task.type,
+      docNo: task.docNo,
+      supplier: task.supplier,
+      status: task.status,
+      statusColor: task.statusColor,
+      date: task.date
+    }))
+  }).catch(() => {
+
+  })
+}
+
+onMounted(() => {
+  loadDashboardData()
+})
 </script>
 
 <style scoped>
