@@ -2,6 +2,7 @@ package com.example.wms.entity;
 
 import lombok.Getter;
 import lombok.Setter;
+
 import javax.persistence.*;
 
 @Getter
@@ -22,4 +23,16 @@ public class InboundOrder extends BaseEntity {
 
     @Column(nullable = false, length = 20)
     private String status;
+
+    @Column(name = "item_count", nullable = false)
+    private Integer itemCount;
+
+    @Column(name = "planned_total_qty", nullable = false)
+    private Integer plannedTotalQty;
+
+    @Column(name = "actual_total_qty", nullable = false)
+    private Integer actualTotalQty;
+
+    @Column(length = 255)
+    private String remark;
 }
