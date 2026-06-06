@@ -30,27 +30,88 @@ INSERT INTO sys_user (username, password, real_name, role, status, created_by) V
 ON DUPLICATE KEY UPDATE username = VALUES(username);
 
 -- ============================================================================
--- 3. 入库单表
+-- 3. 入库相关表
 -- ============================================================================
+DROP TABLE IF EXISTS inbound_order_detail;
+DROP TABLE IF EXISTS inventory_stock;
 DROP TABLE IF EXISTS inbound_order;
-CREATE TABLE inbound_order (
-    id              BIGINT AUTO_INCREMENT PRIMARY KEY  COMMENT '主键ID',
-    doc_no          VARCHAR(50)  NOT NULL UNIQUE       COMMENT '入库单号',
-    supplier        VARCHAR(100) NOT NULL              COMMENT '供应商',
-    status          VARCHAR(20)  NOT NULL DEFAULT '未入库' COMMENT '状态：未入库/部分完成/已完成',
-    created_by      VARCHAR(50)  DEFAULT 'system'     COMMENT '创建人',
-    updated_by      VARCHAR(50)  DEFAULT 'system'     COMMENT '更新人',
-    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    INDEX idx_doc_no (doc_no),
-    INDEX idx_status (status)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单表';
 
--- 4. 入库单演示数据
-INSERT INTO inbound_order (doc_no, supplier, status, created_by) VALUES
-('IN20240601001', '上海汽车零部件', '未入库', 'operator'),
-('IN20240601002', '长春一汽配套', '部分完成', 'operator')
-ON DUPLICATE KEY UPDATE doc_no = VALUES(doc_no);
+CREATE TABLE inbound_order (
+    id                BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    doc_no            VARCHAR(50)  NOT NULL COMMENT '入库单号',
+    supplier          VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
+    status            VARCHAR(20)  NOT NULL DEFAULT '未入库' COMMENT '状态：未入库/部分完成/已完成',
+    item_count        INT          NOT NULL DEFAULT 0 COMMENT '明细条数',
+    planned_total_qty INT          NOT NULL DEFAULT 0 COMMENT '计划总数',
+    actual_total_qty  INT          NOT NULL DEFAULT 0 COMMENT '实收总数',
+    remark            VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    created_by        VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by        VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at        DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_inbound_order_doc_no (doc_no),
+    KEY idx_inbound_order_status (status),
+    KEY idx_inbound_order_supplier (supplier),
+    KEY idx_inbound_order_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单头表';
+
+CREATE TABLE inbound_order_detail (
+    id                 BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    inbound_order_id   BIGINT       NOT NULL COMMENT '入库单ID',
+    doc_no             VARCHAR(50)  NOT NULL COMMENT '入库单号冗余',
+    line_no            INT          NOT NULL COMMENT '行号',
+    material_code      VARCHAR(50)  NOT NULL COMMENT '物料号',
+    material_name      VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    packaging_capacity INT          DEFAULT NULL COMMENT '包装容量',
+    planned_qty        INT          NOT NULL COMMENT '计划入库数量',
+    actual_qty         INT          NOT NULL DEFAULT 0 COMMENT '累计实际入库数量',
+    remark             VARCHAR(255) DEFAULT NULL COMMENT '明细备注',
+    created_by         VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by         VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT fk_inbound_order_detail_order_id FOREIGN KEY (inbound_order_id) REFERENCES inbound_order (id),
+    UNIQUE KEY uk_inbound_order_detail_order_material (inbound_order_id, material_code),
+    KEY idx_inbound_order_detail_doc_no (doc_no),
+    KEY idx_inbound_order_detail_material_code (material_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单明细表';
+
+CREATE TABLE inventory_stock (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    material_code       VARCHAR(50)  NOT NULL COMMENT '物料号',
+    material_name       VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    supplier            VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
+    on_hand_qty         INT          NOT NULL DEFAULT 0 COMMENT '当前库存数量',
+    last_inbound_doc_no VARCHAR(50)  DEFAULT NULL COMMENT '最近入库单号',
+    last_inbound_at     DATETIME     DEFAULT NULL COMMENT '最近入库时间',
+    created_by          VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by          VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_inventory_stock_material_supplier (material_code, supplier),
+    KEY idx_inventory_stock_last_inbound_at (last_inbound_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='最小库存快照表';
+
+-- 4. 入库演示数据
+INSERT INTO inbound_order (
+    id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, remark, created_by, updated_by
+) VALUES
+    (1, 'IN20240601001', '上海汽车零部件', '未入库', 2, 180, 0, '演示未入库单据', 'operator', 'operator'),
+    (2, 'IN20240601002', '长春一汽配套', '部分完成', 2, 180, 70, '演示部分完成单据', 'operator', 'operator');
+
+INSERT INTO inbound_order_detail (
+    id, inbound_order_id, doc_no, line_no, material_code, material_name, packaging_capacity, planned_qty, actual_qty, remark, created_by, updated_by
+) VALUES
+    (1, 1, 'IN20240601001', 1, 'MAT-AXLE-001', '前桥总成', 20, 100, 0, '待入库明细', 'operator', 'operator'),
+    (2, 1, 'IN20240601001', 2, 'MAT-BOLT-002', '高强度螺栓', 40, 80, 0, '待入库明细', 'operator', 'operator'),
+    (3, 2, 'IN20240601002', 1, 'MAT-DOOR-003', '车门组件', 10, 60, 30, '已部分入库', 'operator', 'operator'),
+    (4, 2, 'IN20240601002', 2, 'MAT-SEAT-004', '座椅支架', 15, 120, 40, '已部分入库', 'operator', 'operator');
+
+INSERT INTO inventory_stock (
+    id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, created_by, updated_by
+) VALUES
+    (1, 'MAT-DOOR-003', '车门组件', '长春一汽配套', 30, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system'),
+    (2, 'MAT-SEAT-004', '座椅支架', '长春一汽配套', 40, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system');
 
 -- ============================================================================
 -- 5. 出库单表
