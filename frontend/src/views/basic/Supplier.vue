@@ -6,7 +6,7 @@
       </el-button>
     </template>
 
-    <el-table :data="tableData" stripe border style="width: 100%">
+    <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="supplierCode" label="供应商代码" width="130" />
       <el-table-column prop="supplierName" label="供应商名称" min-width="180" />
@@ -26,11 +26,29 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
+import { getSuppliersApi } from '@/api/basic'
 
+const loading = ref(false)
 const tableData = ref([])
+
+onMounted(() => {
+  fetchSuppliers()
+})
+
+async function fetchSuppliers() {
+  loading.value = true
+  try {
+    const { data } = await getSuppliersApi()
+    tableData.value = data || []
+  } catch (error) {
+    tableData.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 function handleAdd() {
   ElMessage.info('新增供应商功能开发中')

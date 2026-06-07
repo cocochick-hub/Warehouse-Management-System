@@ -6,7 +6,7 @@
       </el-button>
     </template>
 
-    <el-table :data="tableData" stripe border style="width: 100%">
+    <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="materialNo" label="物料号" width="140" />
       <el-table-column prop="materialName" label="物料名称" min-width="140" />
@@ -26,11 +26,41 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { onMounted, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
+import { getMaterialsApi, getPackagingApi, getSuppliersApi } from '@/api/basic'
 
+const loading = ref(false)
 const tableData = ref([])
+
+onMounted(() => {
+  fetchPackaging()
+})
+
+async function fetchPackaging() {
+  loading.value = true
+  try {
+    const [{ data: packagingList }, { data: materialList }, { data: supplierList }] = await Promise.all([
+      getPackagingApi(),
+      getMaterialsApi(),
+      getSuppliersApi()
+    ])
+
+    const materialMap = new Map((materialList || []).map((item) => [item.materialNo, item]))
+    const supplierMap = new Map((supplierList || []).map((item) => [item.supplierCode, item]))
+
+    tableData.value = (packagingList || []).map((item) => ({
+      ...item,
+      materialName: materialMap.get(item.materialNo)?.materialName || '',
+      supplier: supplierMap.get(item.supplierCode)?.supplierName || ''
+    }))
+  } catch (error) {
+    tableData.value = []
+  } finally {
+    loading.value = false
+  }
+}
 
 function handleAdd() {
   ElMessage.info('新增包装功能开发中')

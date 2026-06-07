@@ -16,6 +16,12 @@
       <el-form-item label="供应商">
         <el-select v-model="query.supplier" placeholder="选择供应商" clearable style="width: 160px">
           <el-option label="全部" value="" />
+          <el-option
+            v-for="supplier in supplierOptions"
+            :key="supplier"
+            :label="supplier"
+            :value="supplier"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -26,7 +32,7 @@
       </el-form-item>
     </el-form>
 
-    <el-table :data="tableData" stripe border style="width: 100%">
+    <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%">
       <el-table-column type="index" label="序号" width="60" />
       <el-table-column prop="materialNo" label="物料号" width="140" />
       <el-table-column prop="materialName" label="物料名称" min-width="160" />
@@ -59,9 +65,10 @@
 </template>
 
 <script setup>
-import { ref, reactive } from 'vue'
+import { computed, onMounted, ref, reactive } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
+import { getMaterialsApi, getSuppliersApi } from '@/api/basic'
 
 const query = reactive({
   materialNo: '',
@@ -69,23 +76,66 @@ const query = reactive({
   supplier: ''
 })
 
+const loading = ref(false)
 const page = ref(1)
 const pageSize = ref(10)
 const total = ref(0)
 const tableData = ref([])
+const suppliers = ref([])
+
+const supplierOptions = computed(() => {
+  return suppliers.value.map((item) => item.supplierName)
+})
+
+onMounted(async () => {
+  await Promise.all([fetchSuppliers(), fetchMaterials()])
+})
+
+async function fetchSuppliers() {
+  const { data } = await getSuppliersApi()
+  suppliers.value = data || []
+}
+
+async function fetchMaterials() {
+  loading.value = true
+  try {
+    const { data } = await getMaterialsApi()
+    tableData.value = (data || []).filter((item) => {
+      const materialNo = query.materialNo.trim()
+      const materialName = query.materialName.trim()
+      const supplier = query.supplier.trim()
+      const matchMaterialNo = !materialNo || item.materialNo.includes(materialNo)
+      const matchMaterialName = !materialName || item.materialName.includes(materialName)
+      const matchSupplier = !supplier || item.supplierName === supplier
+      return matchMaterialNo && matchMaterialName && matchSupplier
+    }).map((item) => ({
+      ...item,
+      supplier: item.supplierName
+    }))
+    total.value = tableData.value.length
+  } catch (error) {
+    tableData.value = []
+    total.value = 0
+  } finally {
+    loading.value = false
+  }
+}
 
 function handleAdd() {
   ElMessage.info('新增物料功能开发中')
 }
 
 function handleSearch() {
-  ElMessage.info('查询功能开发中')
+  fetchMaterials()
+  page.value = 1
 }
 
 function handleReset() {
   query.materialNo = ''
   query.materialName = ''
   query.supplier = ''
+  page.value = 1
+  fetchMaterials()
 }
 
 function handleSizeChange() {}

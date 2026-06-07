@@ -30,7 +30,82 @@ INSERT INTO sys_user (username, password, real_name, role, status, created_by) V
 ON DUPLICATE KEY UPDATE username = VALUES(username);
 
 -- ============================================================================
--- 3. 入库相关表
+-- 3. 基础信息表
+-- ============================================================================
+DROP TABLE IF EXISTS packaging_info;
+DROP TABLE IF EXISTS material_info;
+DROP TABLE IF EXISTS supplier_info;
+
+CREATE TABLE supplier_info (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    supplier_code   VARCHAR(50)  NOT NULL COMMENT '供应商代码',
+    supplier_name   VARCHAR(100) NOT NULL COMMENT '供应商名称',
+    contact         VARCHAR(50)  DEFAULT NULL COMMENT '联系人',
+    phone           VARCHAR(30)  DEFAULT NULL COMMENT '联系电话',
+    created_by      VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by      VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_supplier_info_code (supplier_code),
+    UNIQUE KEY uk_supplier_info_name (supplier_name)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='供应商信息表';
+
+CREATE TABLE material_info (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    material_no     VARCHAR(50)  NOT NULL COMMENT '物料号',
+    material_name   VARCHAR(100) NOT NULL COMMENT '物料名称',
+    material_type   VARCHAR(50)  DEFAULT NULL COMMENT '物料类型',
+    unit            VARCHAR(20)  DEFAULT NULL COMMENT '单位',
+    supplier_code   VARCHAR(50)  NOT NULL COMMENT '供应商代码',
+    supplier_name   VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
+    created_by      VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by      VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_material_info_no (material_no),
+    KEY idx_material_info_supplier_code (supplier_code),
+    CONSTRAINT fk_material_info_supplier_code FOREIGN KEY (supplier_code) REFERENCES supplier_info (supplier_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料信息表';
+
+CREATE TABLE packaging_info (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    material_no         VARCHAR(50)  NOT NULL COMMENT '物料号',
+    supplier_code       VARCHAR(50)  NOT NULL COMMENT '供应商代码',
+    package_model       VARCHAR(50)  DEFAULT NULL COMMENT '包装型号',
+    package_capacity    INT          DEFAULT NULL COMMENT '包装容量',
+    created_by          VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by          VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_packaging_info_material_supplier (material_no, supplier_code),
+    KEY idx_packaging_info_supplier_code (supplier_code),
+    CONSTRAINT fk_packaging_info_material_no FOREIGN KEY (material_no) REFERENCES material_info (material_no),
+    CONSTRAINT fk_packaging_info_supplier_code FOREIGN KEY (supplier_code) REFERENCES supplier_info (supplier_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='包装信息表';
+
+INSERT INTO supplier_info (supplier_code, supplier_name, contact, phone, created_by, updated_by) VALUES
+('SUP-001', '上海汽车零部件', '张工', '13800000001', 'system', 'system'),
+('SUP-002', '苏州精密器具', '李经理', '13800000002', 'system', 'system'),
+('SUP-003', '宁波电子模组', '王主管', '13800000003', 'system', 'system');
+
+INSERT INTO material_info (material_no, material_name, material_type, unit, supplier_code, supplier_name, created_by, updated_by) VALUES
+('MAT-ENG-001', '发动机支架', '结构件', '件', 'SUP-001', '上海汽车零部件', 'system', 'system'),
+('MAT-ENG-002', '减震衬套', '橡胶件', '件', 'SUP-001', '上海汽车零部件', 'system', 'system'),
+('MAT-TOOL-001', '扭矩扳手', '器具', '把', 'SUP-002', '苏州精密器具', 'system', 'system'),
+('MAT-TOOL-002', '定位销', '器具', '件', 'SUP-002', '苏州精密器具', 'system', 'system'),
+('MAT-ELE-001', '控制器模块', '电子件', '套', 'SUP-003', '宁波电子模组', 'system', 'system'),
+('MAT-ELE-002', '线束组件', '电子件', '套', 'SUP-003', '宁波电子模组', 'system', 'system');
+
+INSERT INTO packaging_info (material_no, supplier_code, package_model, package_capacity, created_by, updated_by) VALUES
+('MAT-ENG-001', 'SUP-001', 'BX-ENG-20', 20, 'system', 'system'),
+('MAT-ENG-002', 'SUP-001', 'BX-RUB-50', 50, 'system', 'system'),
+('MAT-TOOL-001', 'SUP-002', 'BOX-TOOL-10', 10, 'system', 'system'),
+('MAT-TOOL-002', 'SUP-002', 'BOX-PIN-100', 100, 'system', 'system'),
+('MAT-ELE-001', 'SUP-003', 'BOX-ELE-8', 8, 'system', 'system'),
+('MAT-ELE-002', 'SUP-003', 'BOX-HAR-15', 15, 'system', 'system');
+
+-- ============================================================================
+-- 4. 入库相关表
 -- ============================================================================
 DROP TABLE IF EXISTS inbound_order_detail;
 DROP TABLE IF EXISTS inventory_stock;
@@ -92,7 +167,7 @@ CREATE TABLE inventory_stock (
     KEY idx_inventory_stock_last_inbound_at (last_inbound_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='最小库存快照表';
 
--- 4. 入库演示数据
+-- 5. 入库演示数据
 INSERT INTO inbound_order (
     id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, remark, created_by, updated_by
 ) VALUES
@@ -114,7 +189,7 @@ INSERT INTO inventory_stock (
     (2, 'MAT-SEAT-004', '座椅支架', '长春一汽配套', 40, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system');
 
 -- ============================================================================
--- 5. 出库单表
+-- 6. 出库单表
 -- ============================================================================
 DROP TABLE IF EXISTS outbound_order;
 CREATE TABLE outbound_order (
@@ -130,7 +205,7 @@ CREATE TABLE outbound_order (
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='出库单表';
 
--- 6. 出库单演示数据
+-- 7. 出库单演示数据
 INSERT INTO outbound_order (doc_no, supplier, status, created_by) VALUES
 ('OUT20240601001', '广州本田', '待出库', 'operator'),
 ('OUT20240601002', '武汉东风', '待出库', 'operator')
