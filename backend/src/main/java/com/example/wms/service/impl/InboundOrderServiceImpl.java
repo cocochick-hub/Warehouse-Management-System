@@ -8,13 +8,20 @@ import com.example.wms.repository.InboundOrderDetailRepository;
 import com.example.wms.repository.InboundOrderRepository;
 import com.example.wms.repository.InventoryStockRepository;
 import com.example.wms.service.InboundOrderService;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Sort;
+import org.springframework.data.jpa.domain.Specification;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import javax.persistence.criteria.Predicate;
 import javax.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.*;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 @Service
@@ -23,6 +30,8 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     private static final String STATUS_PENDING = "未入库";
     private static final String STATUS_PARTIAL = "部分完成";
     private static final String STATUS_COMPLETED = "已完成";
+    private static final DateTimeFormatter DOC_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final AtomicInteger DOC_NO_SEQUENCE = new AtomicInteger(0);
 
     private final InboundOrderRepository inboundOrderRepository;
     private final InboundOrderDetailRepository inboundOrderDetailRepository;
@@ -40,26 +49,21 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     public InboundOrderPageResponse listOrders(String docNo, String supplier, String status, Integer page, Integer size) {
         int safePage = page == null || page < 1 ? 1 : page;
         int safeSize = size == null || size < 1 ? 10 : size;
-
-        List<InboundOrderSummaryDTO> filtered = inboundOrderRepository.findAllByOrderByCreatedAtDesc().stream()
-                .filter(order -> matchesText(order.getDocNo(), docNo))
-                .filter(order -> matchesText(order.getSupplier(), supplier))
-                .filter(order -> matchesStatus(order.getStatus(), status))
+        Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.DESC, "createdAt"));
+        Specification<InboundOrder> specification = buildOrderSpecification(docNo, supplier, status);
+        Page<InboundOrder> resultPage = inboundOrderRepository.findAll(specification, pageable);
+        List<InboundOrderSummaryDTO> records = resultPage.getContent().stream()
                 .map(this::toSummaryDTO)
                 .collect(Collectors.toList());
 
-        int fromIndex = Math.min((safePage - 1) * safeSize, filtered.size());
-        int toIndex = Math.min(fromIndex + safeSize, filtered.size());
-        List<InboundOrderSummaryDTO> records = filtered.subList(fromIndex, toIndex);
-
-        return new InboundOrderPageResponse(filtered.size(), safePage, safeSize, records);
+        return new InboundOrderPageResponse((int) resultPage.getTotalElements(), safePage, safeSize, records);
     }
 
     @Override
     public InboundOrderDetailResponse getOrderDetail(Long id) {
         InboundOrder order = findOrder(id);
         List<InboundOrderDetail> details = inboundOrderDetailRepository.findByInboundOrderIdOrderByLineNoAsc(id);
-        return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details));
+        return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details), toInventoryStockDTOs(order, details));
     }
 
     @Override
@@ -182,7 +186,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         order.setUpdatedAt(now);
         inboundOrderRepository.save(order);
 
-        return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details));
+        return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details), toInventoryStockDTOs(order, details));
     }
 
     private InboundOrder findOrder(Long id) {
@@ -207,13 +211,16 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         }
     }
 
-    private String generateDocNo() {
-        DateTimeFormatter formatter = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
-        String docNo = "IN" + LocalDateTime.now().format(formatter);
-        while (inboundOrderRepository.existsByDocNo(docNo)) {
-            docNo = "IN" + LocalDateTime.now().plusNanos(1_000_000).format(formatter);
+    private synchronized String generateDocNo() {
+        String timestamp = LocalDateTime.now().format(DOC_NO_FORMATTER);
+        for (int attempt = 0; attempt < 1000; attempt++) {
+            int suffix = DOC_NO_SEQUENCE.updateAndGet(current -> (current + 1) % 1000);
+            String docNo = "IN" + timestamp + String.format("%03d", suffix);
+            if (!inboundOrderRepository.existsByDocNo(docNo)) {
+                return docNo;
+            }
         }
-        return docNo;
+        throw new IllegalStateException("入库单号生成失败，请稍后重试");
     }
 
     private int sumPlannedQty(List<InboundOrderCreateDetailRequest> details) {
@@ -256,7 +263,6 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                                                 LocalDateTime now) {
         InventoryStock stock = new InventoryStock();
         stock.setMaterialCode(detail.getMaterialCode());
-        stock.setMaterialName(detail.getMaterialName());
         stock.setSupplier(order.getSupplier());
         stock.setOnHandQty(0);
         stock.setLastInboundDocNo(null);
@@ -266,6 +272,27 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         stock.setCreatedAt(now);
         stock.setUpdatedAt(now);
         return stock;
+    }
+
+    private Specification<InboundOrder> buildOrderSpecification(String docNo, String supplier, String status) {
+        return (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            String docNoKeyword = trimToNull(docNo);
+            String supplierKeyword = trimToNull(supplier);
+            String statusKeyword = trimToNull(status);
+
+            if (docNoKeyword != null) {
+                predicates.add(criteriaBuilder.like(root.get("docNo"), "%" + docNoKeyword + "%"));
+            }
+            if (supplierKeyword != null) {
+                predicates.add(criteriaBuilder.like(root.get("supplier"), "%" + supplierKeyword + "%"));
+            }
+            if (statusKeyword != null) {
+                predicates.add(criteriaBuilder.equal(root.get("status"), statusKeyword));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
     }
 
     private String calculateStatus(Integer plannedTotalQty, Integer actualTotalQty) {
@@ -313,18 +340,40 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 .collect(Collectors.toList());
     }
 
-    private boolean matchesText(String source, String keyword) {
-        if (keyword == null || keyword.trim().isEmpty()) {
-            return true;
+    private List<InventoryStockDTO> toInventoryStockDTOs(InboundOrder order, List<InboundOrderDetail> details) {
+        if (details.isEmpty()) {
+            return Collections.emptyList();
         }
-        return source != null && source.contains(keyword.trim());
-    }
 
-    private boolean matchesStatus(String source, String status) {
-        if (status == null || status.trim().isEmpty()) {
-            return true;
+        List<String> materialCodes = details.stream()
+                .map(InboundOrderDetail::getMaterialCode)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+
+        if (materialCodes.isEmpty()) {
+            return Collections.emptyList();
         }
-        return Objects.equals(source, status.trim());
+
+        Map<String, InventoryStock> stockByMaterialCode = inventoryStockRepository
+                .findBySupplierAndMaterialCodeIn(order.getSupplier(), materialCodes)
+                .stream()
+                .collect(Collectors.toMap(InventoryStock::getMaterialCode, stock -> stock));
+
+        return details.stream()
+                .map(InboundOrderDetail::getMaterialCode)
+                .distinct()
+                .map(stockByMaterialCode::get)
+                .filter(Objects::nonNull)
+                .map(stock -> new InventoryStockDTO(
+                        stock.getMaterialCode(),
+                        stock.getMaterialName(),
+                        stock.getSupplier(),
+                        stock.getOnHandQty(),
+                        stock.getLastInboundDocNo(),
+                        stock.getLastInboundAt()
+                ))
+                .collect(Collectors.toList());
     }
 
     private int safeInt(Integer value) {

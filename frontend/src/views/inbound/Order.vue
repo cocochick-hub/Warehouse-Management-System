@@ -38,7 +38,7 @@
       <el-table-column prop="actualTotalQty" label="实收总数" width="90" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
+          <el-tag :type="inboundStatusType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180">
@@ -88,6 +88,7 @@ import PageContainer from '@/components/PageContainer.vue'
 import InboundOrderForm from '@/components/inbound/InboundOrderForm.vue'
 import InboundOrderDetailDialog from '@/components/inbound/InboundOrderDetailDialog.vue'
 import { createInboundOrderApi, getInboundOrderDetailApi, getInboundOrdersApi } from '@/api/inbound'
+import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const router = useRouter()
 
@@ -158,17 +159,6 @@ function handleSizeChange(size) {
   fetchOrders()
 }
 
-function statusType(status) {
-  if (status === '已完成') return 'success'
-  if (status === '部分完成') return 'warning'
-  return 'info'
-}
-
-function formatDateTime(value) {
-  if (!value) return '-'
-  return value.replace('T', ' ')
-}
-
 async function handleView(id) {
   try {
     const { data } = await getInboundOrderDetailApi(id)
@@ -185,6 +175,7 @@ async function handleSubmitCreate(payload) {
     await createInboundOrderApi(payload)
     ElMessage.success('入库单创建成功')
     createVisible.value = false
+    pagination.page = 1
     await fetchOrders()
   } finally {
     submitting.value = false
