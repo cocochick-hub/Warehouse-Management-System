@@ -22,3 +22,11 @@ export function createInboundOrderApi(data) {
     data
   })
 }
+
+export function receiveInboundOrderApi(id, data) {
+  return request({
+    url: `/inbound/orders/${id}/receive`,
+    method: 'post',
+    data
+  })
+}

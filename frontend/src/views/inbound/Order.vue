@@ -49,7 +49,7 @@
       <el-table-column label="操作" width="140" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleView(row.id)">查看</el-button>
-          <el-button type="success" link size="small" @click="goManualInbound">入库</el-button>
+          <el-button type="success" link size="small" @click="goManualInbound(row.id)">入库</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -191,8 +191,11 @@ async function handleSubmitCreate(payload) {
   }
 }
 
-function goManualInbound() {
-  router.push('/inbound/manual')
+function goManualInbound(id) {
+  router.push({
+    path: '/inbound/manual',
+    query: id ? { orderId: String(id) } : undefined
+  })
 }
 </script>
 
