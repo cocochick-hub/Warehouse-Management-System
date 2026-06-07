@@ -3,8 +3,10 @@ package com.example.wms.service.impl;
 import com.example.wms.dto.inbound.*;
 import com.example.wms.entity.InboundOrder;
 import com.example.wms.entity.InboundOrderDetail;
+import com.example.wms.entity.InventoryStock;
 import com.example.wms.repository.InboundOrderDetailRepository;
 import com.example.wms.repository.InboundOrderRepository;
+import com.example.wms.repository.InventoryStockRepository;
 import com.example.wms.service.InboundOrderService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -24,11 +26,14 @@ public class InboundOrderServiceImpl implements InboundOrderService {
 
     private final InboundOrderRepository inboundOrderRepository;
     private final InboundOrderDetailRepository inboundOrderDetailRepository;
+    private final InventoryStockRepository inventoryStockRepository;
 
     public InboundOrderServiceImpl(InboundOrderRepository inboundOrderRepository,
-                                   InboundOrderDetailRepository inboundOrderDetailRepository) {
+                                   InboundOrderDetailRepository inboundOrderDetailRepository,
+                                   InventoryStockRepository inventoryStockRepository) {
         this.inboundOrderRepository = inboundOrderRepository;
         this.inboundOrderDetailRepository = inboundOrderDetailRepository;
+        this.inventoryStockRepository = inventoryStockRepository;
     }
 
     @Override
@@ -147,6 +152,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             throw new IllegalArgumentException("至少需要一条明细的入库数量大于0");
         }
 
+        Map<Long, Integer> receiveQtyByDetailId = new HashMap<>();
         for (InboundOrderDetail detail : details) {
             InboundReceiveDetailRequest item = requestMap.get(detail.getId());
             if (item == null) {
@@ -159,12 +165,14 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 throw new IllegalArgumentException("物料 " + detail.getMaterialCode() + " 的累计实收数量不能大于计划数量");
             }
 
+            receiveQtyByDetailId.put(detail.getId(), receiveQty);
             detail.setActualQty(nextActualQty);
             detail.setUpdatedBy(currentOperator);
             detail.setUpdatedAt(now);
         }
 
         inboundOrderDetailRepository.saveAll(details);
+        updateInventoryStocks(order, details, receiveQtyByDetailId, currentOperator, now);
 
         order.setItemCount(details.size());
         order.setPlannedTotalQty(details.stream().mapToInt(item -> safeInt(item.getPlannedQty())).sum());
@@ -210,6 +218,54 @@ public class InboundOrderServiceImpl implements InboundOrderService {
 
     private int sumPlannedQty(List<InboundOrderCreateDetailRequest> details) {
         return details.stream().mapToInt(item -> safeInt(item.getPlannedQty())).sum();
+    }
+
+    private void updateInventoryStocks(InboundOrder order,
+                                       List<InboundOrderDetail> details,
+                                       Map<Long, Integer> receiveQtyByDetailId,
+                                       String operator,
+                                       LocalDateTime now) {
+        List<InventoryStock> stocksToSave = new ArrayList<>();
+        for (InboundOrderDetail detail : details) {
+            int receiveQty = receiveQtyByDetailId.getOrDefault(detail.getId(), 0);
+            if (receiveQty <= 0) {
+                continue;
+            }
+
+            InventoryStock stock = inventoryStockRepository
+                    .findByMaterialCodeAndSupplier(detail.getMaterialCode(), order.getSupplier())
+                    .orElseGet(() -> createInventoryStock(order, detail, operator, now));
+
+            stock.setMaterialName(detail.getMaterialName());
+            stock.setOnHandQty(safeInt(stock.getOnHandQty()) + receiveQty);
+            stock.setLastInboundDocNo(order.getDocNo());
+            stock.setLastInboundAt(now);
+            stock.setUpdatedBy(operator);
+            stock.setUpdatedAt(now);
+            stocksToSave.add(stock);
+        }
+
+        if (!stocksToSave.isEmpty()) {
+            inventoryStockRepository.saveAll(stocksToSave);
+        }
+    }
+
+    private InventoryStock createInventoryStock(InboundOrder order,
+                                                InboundOrderDetail detail,
+                                                String operator,
+                                                LocalDateTime now) {
+        InventoryStock stock = new InventoryStock();
+        stock.setMaterialCode(detail.getMaterialCode());
+        stock.setMaterialName(detail.getMaterialName());
+        stock.setSupplier(order.getSupplier());
+        stock.setOnHandQty(0);
+        stock.setLastInboundDocNo(null);
+        stock.setLastInboundAt(null);
+        stock.setCreatedBy(operator);
+        stock.setUpdatedBy(operator);
+        stock.setCreatedAt(now);
+        stock.setUpdatedAt(now);
+        return stock;
     }
 
     private String calculateStatus(Integer plannedTotalQty, Integer actualTotalQty) {
