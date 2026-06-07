@@ -13,4 +13,5 @@ public class InboundOrderDetailResponse {
 
     private InboundOrderSummaryDTO order;
     private List<InboundOrderDetailDTO> details;
+    private List<InventoryStockDTO> inventoryStocks;
 }

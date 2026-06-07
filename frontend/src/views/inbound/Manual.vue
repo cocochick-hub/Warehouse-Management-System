@@ -48,7 +48,7 @@
       <el-table-column prop="actualTotalQty" label="已入库总数" width="110" />
       <el-table-column prop="status" label="状态" width="100">
         <template #default="{ row }">
-          <el-tag :type="statusType(row.status)" size="small">{{ row.status }}</el-tag>
+          <el-tag :type="inboundStatusType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180">
@@ -100,6 +100,7 @@ import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
 import InboundReceiveDialog from '@/components/inbound/InboundReceiveDialog.vue'
 import { getInboundOrderDetailApi, getInboundOrdersApi, receiveInboundOrderApi } from '@/api/inbound'
+import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const route = useRoute()
 const router = useRouter()
@@ -187,17 +188,6 @@ function handleSizeChange(size) {
   pagination.size = size
   pagination.page = 1
   fetchOrders()
-}
-
-function statusType(status) {
-  if (status === '已完成') return 'success'
-  if (status === '部分完成') return 'warning'
-  return 'info'
-}
-
-function formatDateTime(value) {
-  if (!value) return '-'
-  return value.replace('T', ' ')
 }
 
 async function handleOpenReceive(id) {
