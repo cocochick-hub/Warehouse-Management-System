@@ -8,7 +8,21 @@
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
       <el-form-item label="供应商" prop="supplier">
-        <el-input v-model="form.supplier" placeholder="请输入供应商名称" maxlength="100" />
+        <el-select
+          v-model="form.supplier"
+          placeholder="请选择供应商"
+          filterable
+          clearable
+          style="width: 100%"
+          @change="handleSupplierChange"
+        >
+          <el-option
+            v-for="supplier in supplierOptions"
+            :key="supplier.supplierCode"
+            :label="supplier.supplierName"
+            :value="supplier.supplierName"
+          />
+        </el-select>
       </el-form-item>
       <el-form-item label="备注" prop="remark">
         <el-input
@@ -30,14 +44,29 @@
 
       <el-table :data="form.details" border class="detail-table">
         <el-table-column type="index" label="行号" width="60" />
-        <el-table-column label="物料号" min-width="150">
+        <el-table-column label="物料选择" min-width="220">
           <template #default="{ row }">
-            <el-input v-model="row.materialCode" placeholder="请输入物料号" maxlength="50" />
+            <el-select
+              v-model="row.materialCode"
+              placeholder="请选择物料"
+              filterable
+              clearable
+              style="width: 100%"
+              :disabled="!form.supplier"
+              @change="(value) => handleMaterialChange(row, value)"
+            >
+              <el-option
+                v-for="material in availableMaterials"
+                :key="material.materialNo"
+                :label="`${material.materialNo} / ${material.materialName}`"
+                :value="material.materialNo"
+              />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column label="物料名称" min-width="160">
           <template #default="{ row }">
-            <el-input v-model="row.materialName" placeholder="请输入物料名称" maxlength="100" />
+            <el-input v-model="row.materialName" placeholder="自动带出" maxlength="100" readonly />
           </template>
         </el-table-column>
         <el-table-column label="包装容量" width="120">
@@ -71,8 +100,9 @@
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
+import { getMaterialsApi, getSuppliersApi } from '@/api/basic'
 
 const props = defineProps({
   visible: {
@@ -89,18 +119,24 @@ const emit = defineEmits(['update:visible', 'submit'])
 
 const formRef = ref()
 const form = reactive(createDefaultForm())
+const supplierOptions = ref([])
+const materialOptions = ref([])
+const availableMaterials = computed(() => {
+  return materialOptions.value
+})
 
 const rules = {
   supplier: [
-    { required: true, message: '请输入供应商名称', trigger: 'blur' }
+    { required: true, message: '请选择供应商', trigger: 'change' }
   ]
 }
 
 watch(
   () => props.visible,
-  (value) => {
+  async (value) => {
     if (value) {
       resetForm()
+      await fetchSuppliers()
     }
   }
 )
@@ -173,6 +209,37 @@ function validateDetails() {
   }
 
   return true
+}
+
+async function fetchSuppliers() {
+  const { data } = await getSuppliersApi()
+  supplierOptions.value = data || []
+}
+
+async function handleSupplierChange() {
+  form.details.splice(0, form.details.length, createDefaultDetail())
+  materialOptions.value = []
+
+  const selectedSupplier = supplierOptions.value.find((item) => item.supplierName === form.supplier)
+  if (!selectedSupplier) {
+    return
+  }
+
+  const { data } = await getMaterialsApi({ supplierCode: selectedSupplier.supplierCode })
+  materialOptions.value = data || []
+}
+
+function handleMaterialChange(row, materialNo) {
+  const material = materialOptions.value.find((item) => item.materialNo === materialNo)
+  if (!material) {
+    row.materialCode = ''
+    row.materialName = ''
+    row.packagingCapacity = 0
+    return
+  }
+  row.materialCode = material.materialNo
+  row.materialName = material.materialName
+  row.packagingCapacity = material.packageCapacity ?? 0
 }
 
 function handleClose() {
