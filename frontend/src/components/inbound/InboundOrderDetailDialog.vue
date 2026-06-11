@@ -23,12 +23,15 @@
 
       <el-table :data="detail.details" border stripe>
         <el-table-column type="index" label="序号" width="60" />
+        <el-table-column prop="supplierName" label="供应商" min-width="150" />
         <el-table-column prop="materialCode" label="物料号" min-width="140" />
         <el-table-column prop="materialName" label="物料名称" min-width="160" />
+        <el-table-column prop="packageModel" label="包装型号" width="120" />
         <el-table-column prop="packagingCapacity" label="包装容量" width="100" />
         <el-table-column prop="plannedQty" label="计划数量" width="100" />
         <el-table-column prop="actualQty" label="实收数量" width="100" />
         <el-table-column prop="pendingQty" label="待入库数量" width="110" />
+        <el-table-column prop="boxCount" label="箱数" width="90" />
         <el-table-column prop="remark" label="备注" min-width="140" />
       </el-table>
 

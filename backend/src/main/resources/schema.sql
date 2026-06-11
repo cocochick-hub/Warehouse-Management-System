@@ -107,6 +107,7 @@ INSERT INTO packaging_info (material_no, supplier_code, package_model, package_c
 -- ============================================================================
 -- 4. 入库相关表
 -- ============================================================================
+DROP TABLE IF EXISTS inbound_kanban_label;
 DROP TABLE IF EXISTS inbound_order_detail;
 DROP TABLE IF EXISTS inventory_stock;
 DROP TABLE IF EXISTS inbound_order;
@@ -135,21 +136,61 @@ CREATE TABLE inbound_order_detail (
     inbound_order_id   BIGINT       NOT NULL COMMENT '入库单ID',
     doc_no             VARCHAR(50)  NOT NULL COMMENT '入库单号冗余',
     line_no            INT          NOT NULL COMMENT '行号',
+    supplier_code      VARCHAR(50)  NOT NULL COMMENT '供应商代码快照',
+    supplier_name      VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
     material_code      VARCHAR(50)  NOT NULL COMMENT '物料号',
     material_name      VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    package_model      VARCHAR(50)  DEFAULT NULL COMMENT '包装型号/器具型号',
     packaging_capacity INT          DEFAULT NULL COMMENT '包装容量',
     planned_qty        INT          NOT NULL COMMENT '计划入库数量',
     actual_qty         INT          NOT NULL DEFAULT 0 COMMENT '累计实际入库数量',
+    package_count      INT          NOT NULL DEFAULT 1 COMMENT '预计包数',
+    warehouse_area     VARCHAR(100) DEFAULT '默认库区' COMMENT '库区',
+    transfer_status    VARCHAR(20)  DEFAULT '不转包' COMMENT '转包状态',
     remark             VARCHAR(255) DEFAULT NULL COMMENT '明细备注',
     created_by         VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
     updated_by         VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
     created_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at         DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
     CONSTRAINT fk_inbound_order_detail_order_id FOREIGN KEY (inbound_order_id) REFERENCES inbound_order (id),
-    UNIQUE KEY uk_inbound_order_detail_order_material (inbound_order_id, material_code),
+    UNIQUE KEY uk_inbound_order_detail_order_supplier_material (inbound_order_id, supplier_code, material_code),
     KEY idx_inbound_order_detail_doc_no (doc_no),
-    KEY idx_inbound_order_detail_material_code (material_code)
+    KEY idx_inbound_order_detail_material_code (material_code),
+    KEY idx_inbound_order_detail_supplier_code (supplier_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单明细表';
+
+CREATE TABLE inbound_kanban_label (
+    id                      BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    inbound_order_id        BIGINT       NOT NULL COMMENT '入库单ID',
+    inbound_order_detail_id BIGINT       NOT NULL COMMENT '入库明细ID',
+    doc_no                  VARCHAR(50)  NOT NULL COMMENT '入库单号',
+    kanban_no               VARCHAR(100) NOT NULL COMMENT '唯一看板号',
+    qr_payload              VARCHAR(255) NOT NULL COMMENT '二维码内容',
+    material_code           VARCHAR(50)  NOT NULL COMMENT '物料号快照',
+    material_name           VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    supplier_code           VARCHAR(50)  NOT NULL COMMENT '供应商代码快照',
+    supplier_name           VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
+    package_model           VARCHAR(50)  DEFAULT NULL COMMENT '器具型号',
+    warehouse_area          VARCHAR(100) DEFAULT '默认库区' COMMENT '库区',
+    label_qty               INT          NOT NULL COMMENT '本看板数量',
+    package_seq             INT          NOT NULL COMMENT '当前第几包',
+    package_total           INT          NOT NULL COMMENT '共几包',
+    transfer_status         VARCHAR(20)  DEFAULT '不转包' COMMENT '转包状态',
+    label_status            VARCHAR(20)  NOT NULL DEFAULT '未入库' COMMENT '看板状态：未入库/已入库/作废',
+    printed_at              DATETIME     DEFAULT NULL COMMENT '最近打印时间',
+    received_at             DATETIME     DEFAULT NULL COMMENT '扫码入库时间',
+    received_by             VARCHAR(50)  DEFAULT NULL COMMENT '扫码入库人',
+    created_by              VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by              VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    CONSTRAINT fk_inbound_kanban_label_order_id FOREIGN KEY (inbound_order_id) REFERENCES inbound_order (id),
+    CONSTRAINT fk_inbound_kanban_label_detail_id FOREIGN KEY (inbound_order_detail_id) REFERENCES inbound_order_detail (id),
+    UNIQUE KEY uk_inbound_kanban_label_no (kanban_no),
+    KEY idx_inbound_kanban_label_doc_no (doc_no),
+    KEY idx_inbound_kanban_label_status (label_status),
+    KEY idx_inbound_kanban_label_detail_id (inbound_order_detail_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库二维码看板表';
 
 CREATE TABLE inventory_stock (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
@@ -171,22 +212,22 @@ CREATE TABLE inventory_stock (
 INSERT INTO inbound_order (
     id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, remark, created_by, updated_by
 ) VALUES
-    (1, 'IN20240601001', '上海汽车零部件', '未入库', 2, 180, 0, '演示未入库单据', 'operator', 'operator'),
+    (1, 'IN20240601001', '多供应商', '未入库', 2, 180, 0, '演示未入库单据', 'operator', 'operator'),
     (2, 'IN20240601002', '长春一汽配套', '部分完成', 2, 180, 70, '演示部分完成单据', 'operator', 'operator');
 
 INSERT INTO inbound_order_detail (
-    id, inbound_order_id, doc_no, line_no, material_code, material_name, packaging_capacity, planned_qty, actual_qty, remark, created_by, updated_by
+    id, inbound_order_id, doc_no, line_no, supplier_code, supplier_name, material_code, material_name, package_model, packaging_capacity, planned_qty, actual_qty, package_count, warehouse_area, transfer_status, remark, created_by, updated_by
 ) VALUES
-    (1, 1, 'IN20240601001', 1, 'MAT-AXLE-001', '前桥总成', 20, 100, 0, '待入库明细', 'operator', 'operator'),
-    (2, 1, 'IN20240601001', 2, 'MAT-BOLT-002', '高强度螺栓', 40, 80, 0, '待入库明细', 'operator', 'operator'),
-    (3, 2, 'IN20240601002', 1, 'MAT-DOOR-003', '车门组件', 10, 60, 30, '已部分入库', 'operator', 'operator'),
-    (4, 2, 'IN20240601002', 2, 'MAT-SEAT-004', '座椅支架', 15, 120, 40, '已部分入库', 'operator', 'operator');
+    (1, 1, 'IN20240601001', 1, 'SUP-001', '上海汽车零部件', 'MAT-ENG-001', '发动机支架', 'BX-ENG-20', 20, 100, 0, 5, '默认库区', '不转包', '待入库明细', 'operator', 'operator'),
+    (2, 1, 'IN20240601001', 2, 'SUP-002', '苏州精密器具', 'MAT-TOOL-002', '定位销', 'BOX-PIN-100', 100, 80, 0, 1, '默认库区', '不转包', '待入库明细', 'operator', 'operator'),
+    (3, 2, 'IN20240601002', 1, 'SUP-003', '宁波电子模组', 'MAT-ELE-001', '控制器模块', 'BOX-ELE-8', 8, 60, 30, 8, '默认库区', '不转包', '已部分入库', 'operator', 'operator'),
+    (4, 2, 'IN20240601002', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 'BOX-HAR-15', 15, 120, 40, 8, '默认库区', '不转包', '已部分入库', 'operator', 'operator');
 
 INSERT INTO inventory_stock (
     id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, created_by, updated_by
 ) VALUES
-    (1, 'MAT-DOOR-003', '车门组件', '长春一汽配套', 30, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system'),
-    (2, 'MAT-SEAT-004', '座椅支架', '长春一汽配套', 40, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system');
+    (1, 'MAT-ELE-001', '控制器模块', '宁波电子模组', 30, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system'),
+    (2, 'MAT-ELE-002', '线束组件', '宁波电子模组', 40, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system');
 
 -- ============================================================================
 -- 6. 出库单表

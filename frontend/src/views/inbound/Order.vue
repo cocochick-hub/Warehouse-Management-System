@@ -46,10 +46,11 @@
           {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="140" fixed="right">
+      <el-table-column label="操作" width="210" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleView(row.id)">查看</el-button>
           <el-button type="success" link size="small" @click="goManualInbound(row.id)">入库</el-button>
+          <el-button type="warning" link size="small" @click="handlePrintKanban(row.id)">打印看板</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -77,6 +78,11 @@
       v-model:visible="detailVisible"
       :detail="currentDetail"
     />
+
+    <InboundKanbanPrintDialog
+      v-model:visible="printVisible"
+      :labels="printLabels"
+    />
   </PageContainer>
 </template>
 
@@ -87,7 +93,13 @@ import { useRouter } from 'vue-router'
 import PageContainer from '@/components/PageContainer.vue'
 import InboundOrderForm from '@/components/inbound/InboundOrderForm.vue'
 import InboundOrderDetailDialog from '@/components/inbound/InboundOrderDetailDialog.vue'
-import { createInboundOrderApi, getInboundOrderDetailApi, getInboundOrdersApi } from '@/api/inbound'
+import InboundKanbanPrintDialog from '@/components/inbound/InboundKanbanPrintDialog.vue'
+import {
+  createInboundOrderApi,
+  generateInboundKanbanLabelsApi,
+  getInboundOrderDetailApi,
+  getInboundOrdersApi
+} from '@/api/inbound'
 import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const router = useRouter()
@@ -103,7 +115,9 @@ const submitting = ref(false)
 const tableData = ref([])
 const createVisible = ref(false)
 const detailVisible = ref(false)
+const printVisible = ref(false)
 const currentDetail = ref(null)
+const printLabels = ref([])
 const pagination = reactive({
   page: 1,
   size: 10,
@@ -180,6 +194,12 @@ async function handleSubmitCreate(payload) {
   } finally {
     submitting.value = false
   }
+}
+
+async function handlePrintKanban(id) {
+  const { data } = await generateInboundKanbanLabelsApi(id)
+  printLabels.value = data || []
+  printVisible.value = true
 }
 
 function goManualInbound(id) {

@@ -30,3 +30,32 @@ export function receiveInboundOrderApi(id, data) {
     data
   })
 }
+
+export function generateInboundKanbanLabelsApi(id) {
+  return request({
+    url: `/inbound/orders/${id}/kanban-labels/generate`,
+    method: 'post'
+  })
+}
+
+export function getInboundKanbanLabelsApi(id) {
+  return request({
+    url: `/inbound/orders/${id}/kanban-labels`,
+    method: 'get'
+  })
+}
+
+export function getInboundScanLabelApi(kanbanNo) {
+  return request({
+    url: `/inbound/scan/labels/${encodeURIComponent(kanbanNo)}`,
+    method: 'get'
+  })
+}
+
+export function receiveInboundScanApi(data) {
+  return request({
+    url: '/inbound/scan/receive',
+    method: 'post',
+    data
+  })
+}

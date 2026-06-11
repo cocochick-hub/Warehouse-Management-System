@@ -20,11 +20,17 @@
 
       <el-table :data="form.details" border stripe>
         <el-table-column prop="lineNo" label="行号" width="70" />
+        <el-table-column prop="supplierName" label="供应商" min-width="150" />
         <el-table-column prop="materialCode" label="物料号" min-width="140" />
         <el-table-column prop="materialName" label="物料名称" min-width="160" />
         <el-table-column prop="plannedQty" label="计划数量" width="100" />
         <el-table-column prop="actualQty" label="累计入库" width="100" />
         <el-table-column prop="pendingQty" label="待入库" width="100" />
+        <el-table-column label="箱数" width="90">
+          <template #default="{ row }">
+            {{ formatBoxCount(row.pendingQty, row.packagingCapacity) }}
+          </template>
+        </el-table-column>
         <el-table-column label="本次入库" width="160">
           <template #default="{ row }">
             <el-input-number
@@ -122,6 +128,15 @@ function handleSubmit() {
     return
   }
   emit('submit', { details })
+}
+
+function formatBoxCount(qty, packagingCapacity) {
+  const quantity = Number(qty) || 0
+  const capacity = Number(packagingCapacity) || 0
+  if (quantity <= 0 || capacity <= 0) {
+    return 0
+  }
+  return Math.round((quantity * 10) / capacity) / 10
 }
 </script>
 
