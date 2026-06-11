@@ -50,6 +50,10 @@
           <el-icon><EditPen /></el-icon>
           <span>手工入库</span>
         </el-menu-item>
+        <el-menu-item index="/inbound/scan">
+          <el-icon><Aim /></el-icon>
+          <span>扫码入库</span>
+        </el-menu-item>
       </el-sub-menu>
 
       <el-sub-menu index="outbound">

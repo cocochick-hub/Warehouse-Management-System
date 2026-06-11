@@ -7,23 +7,6 @@
     @close="handleClose"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
-      <el-form-item label="供应商" prop="supplier">
-        <el-select
-          v-model="form.supplier"
-          placeholder="请选择供应商"
-          filterable
-          clearable
-          style="width: 100%"
-          @change="handleSupplierChange"
-        >
-          <el-option
-            v-for="supplier in supplierOptions"
-            :key="supplier.supplierCode"
-            :label="supplier.supplierName"
-            :value="supplier.supplierName"
-          />
-        </el-select>
-      </el-form-item>
       <el-form-item label="备注" prop="remark">
         <el-input
           v-model="form.remark"
@@ -44,6 +27,25 @@
 
       <el-table :data="form.details" border class="detail-table">
         <el-table-column type="index" label="行号" width="60" />
+        <el-table-column label="供应商" min-width="180">
+          <template #default="{ row }">
+            <el-select
+              v-model="row.supplierCode"
+              placeholder="选择供应商"
+              filterable
+              clearable
+              style="width: 100%"
+              @change="(value) => handleRowSupplierChange(row, value)"
+            >
+              <el-option
+                v-for="supplier in supplierOptions"
+                :key="supplier.supplierCode"
+                :label="supplier.supplierName"
+                :value="supplier.supplierCode"
+              />
+            </el-select>
+          </template>
+        </el-table-column>
         <el-table-column label="物料选择" min-width="220">
           <template #default="{ row }">
             <el-select
@@ -52,11 +54,11 @@
               filterable
               clearable
               style="width: 100%"
-              :disabled="!form.supplier"
+              :disabled="!row.supplierCode"
               @change="(value) => handleMaterialChange(row, value)"
             >
               <el-option
-                v-for="material in availableMaterials"
+                v-for="material in row.materialOptions"
                 :key="material.materialNo"
                 :label="`${material.materialNo} / ${material.materialName}`"
                 :value="material.materialNo"
@@ -71,12 +73,29 @@
         </el-table-column>
         <el-table-column label="包装容量" width="120">
           <template #default="{ row }">
-            <el-input-number v-model="row.packagingCapacity" :min="0" :step="1" controls-position="right" />
+            <el-input-number
+              v-model="row.packagingCapacity"
+              :min="0"
+              :step="1"
+              controls-position="right"
+              @change="() => updatePackageCount(row)"
+            />
           </template>
         </el-table-column>
         <el-table-column label="计划数量" width="120">
           <template #default="{ row }">
-            <el-input-number v-model="row.plannedQty" :min="1" :step="1" controls-position="right" />
+            <el-input-number
+              v-model="row.plannedQty"
+              :min="1"
+              :step="1"
+              controls-position="right"
+              @change="() => updatePackageCount(row)"
+            />
+          </template>
+        </el-table-column>
+        <el-table-column label="箱数" width="120">
+          <template #default="{ row }">
+            <div class="package-note">{{ boxCountText(row) }}</div>
           </template>
         </el-table-column>
         <el-table-column label="备注" min-width="150">
@@ -100,7 +119,7 @@
 </template>
 
 <script setup>
-import { computed, reactive, ref, watch } from 'vue'
+import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMaterialsApi, getSuppliersApi } from '@/api/basic'
 
@@ -120,16 +139,8 @@ const emit = defineEmits(['update:visible', 'submit'])
 const formRef = ref()
 const form = reactive(createDefaultForm())
 const supplierOptions = ref([])
-const materialOptions = ref([])
-const availableMaterials = computed(() => {
-  return materialOptions.value
-})
 
-const rules = {
-  supplier: [
-    { required: true, message: '请选择供应商', trigger: 'change' }
-  ]
-}
+const rules = {}
 
 watch(
   () => props.visible,
@@ -143,17 +154,23 @@ watch(
 
 function createDefaultDetail() {
   return {
+    supplierCode: '',
+    supplierName: '',
     materialCode: '',
     materialName: '',
+    packageModel: '',
     packagingCapacity: 0,
     plannedQty: 1,
+    packageCount: 1,
+    warehouseArea: '默认库区',
+    transferStatus: '不转包',
+    materialOptions: [],
     remark: ''
   }
 }
 
 function createDefaultForm() {
   return {
-    supplier: '',
     remark: '',
     details: [createDefaultDetail()]
   }
@@ -161,14 +178,20 @@ function createDefaultForm() {
 
 function resetForm() {
   const next = createDefaultForm()
-  form.supplier = next.supplier
   form.remark = next.remark
   form.details.splice(0, form.details.length, ...next.details)
   formRef.value?.clearValidate?.()
 }
 
 function addDetail() {
-  form.details.push(createDefaultDetail())
+  const previous = form.details[form.details.length - 1]
+  const next = createDefaultDetail()
+  if (previous?.supplierCode) {
+    next.supplierCode = previous.supplierCode
+    next.supplierName = previous.supplierName
+    next.materialOptions = previous.materialOptions || []
+  }
+  form.details.push(next)
 }
 
 function removeDetail(index) {
@@ -185,8 +208,12 @@ function validateDetails() {
     return false
   }
 
-  const materialCodes = new Set()
+  const materialKeys = new Set()
   for (const item of form.details) {
+    if (!item.supplierCode?.trim()) {
+      ElMessage.warning('请选择供应商')
+      return false
+    }
     if (!item.materialCode?.trim()) {
       ElMessage.warning('请填写物料号')
       return false
@@ -200,12 +227,12 @@ function validateDetails() {
       return false
     }
 
-    const code = item.materialCode.trim()
-    if (materialCodes.has(code)) {
-      ElMessage.warning('同一张入库单中不允许重复填写同一物料号')
+    const key = `${item.supplierCode.trim()}::${item.materialCode.trim()}`
+    if (materialKeys.has(key)) {
+      ElMessage.warning('同一张入库单中不允许重复选择同一供应商下的同一物料')
       return false
     }
-    materialCodes.add(code)
+    materialKeys.add(key)
   }
 
   return true
@@ -216,30 +243,38 @@ async function fetchSuppliers() {
   supplierOptions.value = data || []
 }
 
-async function handleSupplierChange() {
-  form.details.splice(0, form.details.length, createDefaultDetail())
-  materialOptions.value = []
-
-  const selectedSupplier = supplierOptions.value.find((item) => item.supplierName === form.supplier)
+async function handleRowSupplierChange(row, supplierCode) {
+  const selectedSupplier = supplierOptions.value.find((item) => item.supplierCode === supplierCode)
+  row.supplierName = selectedSupplier?.supplierName || ''
+  row.materialCode = ''
+  row.materialName = ''
+  row.packageModel = ''
+  row.packagingCapacity = 0
+  row.packageCount = 1
+  row.materialOptions = []
   if (!selectedSupplier) {
     return
   }
 
   const { data } = await getMaterialsApi({ supplierCode: selectedSupplier.supplierCode })
-  materialOptions.value = data || []
+  row.materialOptions = data || []
 }
 
 function handleMaterialChange(row, materialNo) {
-  const material = materialOptions.value.find((item) => item.materialNo === materialNo)
+  const material = (row.materialOptions || []).find((item) => item.materialNo === materialNo)
   if (!material) {
     row.materialCode = ''
     row.materialName = ''
+    row.packageModel = ''
     row.packagingCapacity = 0
+    row.packageCount = 1
     return
   }
   row.materialCode = material.materialNo
   row.materialName = material.materialName
+  row.packageModel = material.packageModel || ''
   row.packagingCapacity = material.packageCapacity ?? 0
+  updatePackageCount(row)
 }
 
 function handleClose() {
@@ -252,18 +287,55 @@ function handleSubmit() {
       return
     }
 
+    const supplierNames = Array.from(new Set(form.details.map((item) => item.supplierName).filter(Boolean)))
     emit('submit', {
-      supplier: form.supplier.trim(),
+      supplier: supplierNames.length === 1 ? supplierNames[0] : '多供应商',
       remark: form.remark?.trim() || '',
       details: form.details.map((item) => ({
+        supplierCode: item.supplierCode.trim(),
+        supplierName: item.supplierName.trim(),
         materialCode: item.materialCode.trim(),
         materialName: item.materialName.trim(),
+        packageModel: item.packageModel?.trim() || '',
         packagingCapacity: item.packagingCapacity ?? 0,
         plannedQty: item.plannedQty,
+        packageCount: calculatePackageCount(item.plannedQty, item.packagingCapacity),
+        warehouseArea: item.warehouseArea?.trim() || '默认库区',
+        transferStatus: item.transferStatus?.trim() || '不转包',
         remark: item.remark?.trim() || ''
       }))
     })
   })
+}
+
+function updatePackageCount(row) {
+  row.packageCount = calculatePackageCount(row.plannedQty, row.packagingCapacity)
+}
+
+function calculatePackageCount(plannedQty, packagingCapacity) {
+  const planned = Number(plannedQty) || 0
+  const capacity = Number(packagingCapacity) || 0
+  if (planned <= 0 || capacity <= 0) {
+    return 1
+  }
+  return Math.ceil(planned / capacity)
+}
+
+function calculateBoxCount(qty, packagingCapacity) {
+  const quantity = Number(qty) || 0
+  const capacity = Number(packagingCapacity) || 0
+  if (quantity <= 0 || capacity <= 0) {
+    return 0
+  }
+  return Math.round((quantity * 10) / capacity) / 10
+}
+
+function boxCountText(row) {
+  const capacity = Number(row.packagingCapacity) || 0
+  if (capacity <= 0) {
+    return '未配置'
+  }
+  return calculateBoxCount(row.plannedQty, row.packagingCapacity)
 }
 </script>
 
@@ -278,5 +350,11 @@ function handleSubmit() {
 
 .detail-table {
   margin-bottom: 8px;
+}
+
+.package-note {
+  color: #606266;
+  font-size: 13px;
+  line-height: 1.4;
 }
 </style>

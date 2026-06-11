@@ -3,7 +3,11 @@ package com.example.wms.service;
 import com.example.wms.dto.inbound.InboundOrderCreateRequest;
 import com.example.wms.dto.inbound.InboundOrderDetailResponse;
 import com.example.wms.dto.inbound.InboundOrderPageResponse;
+import com.example.wms.dto.inbound.InboundKanbanLabelDTO;
 import com.example.wms.dto.inbound.InboundReceiveRequest;
+import com.example.wms.dto.inbound.InboundScanReceiveRequest;
+
+import java.util.List;
 
 public interface InboundOrderService {
 
@@ -14,4 +18,12 @@ public interface InboundOrderService {
     InboundOrderDetailResponse createOrder(InboundOrderCreateRequest request, String operator);
 
     InboundOrderDetailResponse receiveOrder(Long id, InboundReceiveRequest request, String operator);
+
+    List<InboundKanbanLabelDTO> generateKanbanLabels(Long id, String operator);
+
+    List<InboundKanbanLabelDTO> listKanbanLabels(Long id);
+
+    InboundKanbanLabelDTO getScanLabel(String kanbanNoOrPayload);
+
+    InboundOrderDetailResponse receiveByScan(InboundScanReceiveRequest request, String operator);
 }

@@ -1,9 +1,11 @@
 package com.example.wms.service.impl;
 
 import com.example.wms.dto.inbound.*;
+import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.entity.InboundOrder;
 import com.example.wms.entity.InboundOrderDetail;
 import com.example.wms.entity.InventoryStock;
+import com.example.wms.repository.InboundKanbanLabelRepository;
 import com.example.wms.repository.InboundOrderDetailRepository;
 import com.example.wms.repository.InboundOrderRepository;
 import com.example.wms.repository.InventoryStockRepository;
@@ -30,18 +32,27 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     private static final String STATUS_PENDING = "未入库";
     private static final String STATUS_PARTIAL = "部分完成";
     private static final String STATUS_COMPLETED = "已完成";
+    private static final String LABEL_STATUS_PENDING = "未入库";
+    private static final String LABEL_STATUS_RECEIVED = "已入库";
+    private static final String QR_PREFIX = "WMS-INBOUND|";
+    private static final String DEFAULT_WAREHOUSE_AREA = "默认库区";
+    private static final String DEFAULT_TRANSFER_STATUS = "不转包";
     private static final DateTimeFormatter DOC_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
+    private static final DateTimeFormatter KANBAN_DATE_FORMATTER = DateTimeFormatter.ofPattern("yyyy-MM-dd");
     private static final AtomicInteger DOC_NO_SEQUENCE = new AtomicInteger(0);
 
     private final InboundOrderRepository inboundOrderRepository;
     private final InboundOrderDetailRepository inboundOrderDetailRepository;
+    private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
     private final InventoryStockRepository inventoryStockRepository;
 
     public InboundOrderServiceImpl(InboundOrderRepository inboundOrderRepository,
                                    InboundOrderDetailRepository inboundOrderDetailRepository,
+                                   InboundKanbanLabelRepository inboundKanbanLabelRepository,
                                    InventoryStockRepository inventoryStockRepository) {
         this.inboundOrderRepository = inboundOrderRepository;
         this.inboundOrderDetailRepository = inboundOrderDetailRepository;
+        this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
         this.inventoryStockRepository = inventoryStockRepository;
     }
 
@@ -77,7 +88,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
 
         InboundOrder order = new InboundOrder();
         order.setDocNo(docNo);
-        order.setSupplier(request.getSupplier().trim());
+        order.setSupplier(resolveOrderSupplier(request));
         order.setStatus(STATUS_PENDING);
         order.setItemCount(request.getDetails().size());
         order.setPlannedTotalQty(sumPlannedQty(request.getDetails()));
@@ -97,11 +108,17 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             detail.setInboundOrderId(savedOrder.getId());
             detail.setDocNo(savedOrder.getDocNo());
             detail.setLineNo(lineNo++);
+            detail.setSupplierCode(item.getSupplierCode().trim());
+            detail.setSupplierName(item.getSupplierName().trim());
             detail.setMaterialCode(item.getMaterialCode().trim());
             detail.setMaterialName(item.getMaterialName().trim());
-            detail.setPackagingCapacity(item.getPackagingCapacity());
+            detail.setPackageModel(trimToNull(item.getPackageModel()));
+            detail.setPackagingCapacity(safeInt(item.getPackagingCapacity()));
             detail.setPlannedQty(item.getPlannedQty());
             detail.setActualQty(0);
+            detail.setPackageCount(calculatePackageCount(item.getPlannedQty(), item.getPackagingCapacity()));
+            detail.setWarehouseArea(defaultIfBlank(item.getWarehouseArea(), DEFAULT_WAREHOUSE_AREA));
+            detail.setTransferStatus(defaultIfBlank(item.getTransferStatus(), DEFAULT_TRANSFER_STATUS));
             detail.setRemark(trimToNull(item.getRemark()));
             detail.setCreatedBy(currentOperator);
             detail.setUpdatedBy(currentOperator);
@@ -189,6 +206,136 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details), toInventoryStockDTOs(order, details));
     }
 
+    @Override
+    @Transactional
+    public List<InboundKanbanLabelDTO> generateKanbanLabels(Long id, String operator) {
+        InboundOrder order = findOrder(id);
+        List<InboundOrderDetail> details = inboundOrderDetailRepository.findByInboundOrderIdOrderByLineNoAsc(id);
+        if (details.isEmpty()) {
+            throw new IllegalStateException("当前入库单缺少明细，无法生成看板");
+        }
+
+        List<InboundKanbanLabel> existingLabels = inboundKanbanLabelRepository.findByInboundOrderIdOrderByInboundOrderDetailIdAscPackageSeqAsc(id);
+        if (!existingLabels.isEmpty()) {
+            return toKanbanLabelDTOs(existingLabels);
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+        List<InboundKanbanLabel> labels = new ArrayList<>();
+        for (InboundOrderDetail detail : details) {
+            int plannedQty = safeInt(detail.getPlannedQty());
+            int pendingQty = Math.max(plannedQty - safeInt(detail.getActualQty()), 0);
+            if (pendingQty <= 0) {
+                continue;
+            }
+            int capacity = safeInt(detail.getPackagingCapacity());
+            int packageTotal = calculatePackageCount(pendingQty, capacity);
+            detail.setPackageCount(packageTotal);
+            detail.setUpdatedBy(currentOperator);
+            detail.setUpdatedAt(now);
+
+            int remainingQty = pendingQty;
+            for (int packageSeq = 1; packageSeq <= packageTotal; packageSeq++) {
+                int labelQty = calculateLabelQty(remainingQty, capacity);
+                remainingQty -= labelQty;
+
+                InboundKanbanLabel label = new InboundKanbanLabel();
+                label.setInboundOrderId(order.getId());
+                label.setInboundOrderDetailId(detail.getId());
+                label.setDocNo(order.getDocNo());
+                label.setKanbanNo(generateKanbanNo(order, detail, packageSeq));
+                label.setQrPayload(QR_PREFIX + label.getKanbanNo());
+                label.setMaterialCode(detail.getMaterialCode());
+                label.setMaterialName(detail.getMaterialName());
+                label.setSupplierCode(detail.getSupplierCode());
+                label.setSupplierName(detail.getSupplierName());
+                label.setPackageModel(detail.getPackageModel());
+                label.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), DEFAULT_WAREHOUSE_AREA));
+                label.setLabelQty(labelQty);
+                label.setPackageSeq(packageSeq);
+                label.setPackageTotal(packageTotal);
+                label.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), DEFAULT_TRANSFER_STATUS));
+                label.setLabelStatus(LABEL_STATUS_PENDING);
+                label.setCreatedBy(currentOperator);
+                label.setUpdatedBy(currentOperator);
+                label.setCreatedAt(now);
+                label.setUpdatedAt(now);
+                labels.add(label);
+            }
+        }
+
+        inboundOrderDetailRepository.saveAll(details);
+        if (labels.isEmpty()) {
+            throw new IllegalStateException("当前入库单没有待入库数量，无法生成看板");
+        }
+        return toKanbanLabelDTOs(inboundKanbanLabelRepository.saveAll(labels));
+    }
+
+    @Override
+    public List<InboundKanbanLabelDTO> listKanbanLabels(Long id) {
+        if (!inboundOrderRepository.existsById(id)) {
+            throw new EntityNotFoundException("入库单不存在");
+        }
+        return toKanbanLabelDTOs(inboundKanbanLabelRepository.findByInboundOrderIdOrderByInboundOrderDetailIdAscPackageSeqAsc(id));
+    }
+
+    @Override
+    public InboundKanbanLabelDTO getScanLabel(String kanbanNoOrPayload) {
+        InboundKanbanLabel label = findLabelByScanValue(kanbanNoOrPayload);
+        return toKanbanLabelDTO(label);
+    }
+
+    @Override
+    @Transactional
+    public InboundOrderDetailResponse receiveByScan(InboundScanReceiveRequest request, String operator) {
+        InboundKanbanLabel label = findLabelByScanValue(request.getKanbanNo());
+        if (!LABEL_STATUS_PENDING.equals(label.getLabelStatus())) {
+            throw new IllegalStateException("该看板已入库或不可入库");
+        }
+
+        InboundOrder order = findOrder(label.getInboundOrderId());
+        if (STATUS_COMPLETED.equals(order.getStatus())) {
+            throw new IllegalStateException("已完成单据不允许再次入库");
+        }
+
+        InboundOrderDetail detail = inboundOrderDetailRepository.findById(label.getInboundOrderDetailId())
+                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+
+        int labelQty = safeInt(label.getLabelQty());
+        int nextActualQty = safeInt(detail.getActualQty()) + labelQty;
+        if (labelQty <= 0) {
+            throw new IllegalStateException("看板数量异常，无法入库");
+        }
+        if (nextActualQty > safeInt(detail.getPlannedQty())) {
+            throw new IllegalArgumentException("物料 " + detail.getMaterialCode() + " 的累计实收数量不能大于计划数量");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+        detail.setActualQty(nextActualQty);
+        detail.setUpdatedBy(currentOperator);
+        detail.setUpdatedAt(now);
+        inboundOrderDetailRepository.save(detail);
+
+        label.setLabelStatus(LABEL_STATUS_RECEIVED);
+        label.setReceivedAt(now);
+        label.setReceivedBy(currentOperator);
+        label.setUpdatedBy(currentOperator);
+        label.setUpdatedAt(now);
+        inboundKanbanLabelRepository.save(label);
+
+        Map<Long, Integer> receiveQtyByDetailId = new HashMap<>();
+        receiveQtyByDetailId.put(detail.getId(), labelQty);
+        updateInventoryStocks(order, Collections.singletonList(detail), receiveQtyByDetailId, currentOperator, now);
+
+        List<InboundOrderDetail> allDetails = inboundOrderDetailRepository.findByInboundOrderIdOrderByLineNoAsc(order.getId());
+        updateOrderSummary(order, allDetails, currentOperator, now);
+        inboundOrderRepository.save(order);
+
+        return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(allDetails), toInventoryStockDTOs(order, allDetails));
+    }
+
     private InboundOrder findOrder(Long id) {
         return inboundOrderRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("入库单不存在"));
@@ -199,14 +346,23 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             throw new IllegalArgumentException("入库单至少包含一条明细");
         }
 
-        Set<String> materialCodes = new HashSet<>();
+        Set<String> supplierMaterialKeys = new HashSet<>();
         for (InboundOrderCreateDetailRequest detail : request.getDetails()) {
+            String supplierCode = trimToNull(detail.getSupplierCode());
+            if (supplierCode == null) {
+                throw new IllegalArgumentException("供应商代码不能为空");
+            }
+            String supplierName = trimToNull(detail.getSupplierName());
+            if (supplierName == null) {
+                throw new IllegalArgumentException("供应商名称不能为空");
+            }
             String materialCode = trimToNull(detail.getMaterialCode());
             if (materialCode == null) {
                 throw new IllegalArgumentException("物料号不能为空");
             }
-            if (!materialCodes.add(materialCode)) {
-                throw new IllegalArgumentException("同一张入库单中不允许重复选择同一物料");
+            String key = supplierCode + "::" + materialCode;
+            if (!supplierMaterialKeys.add(key)) {
+                throw new IllegalArgumentException("同一张入库单中不允许重复选择同一供应商下的同一物料");
             }
         }
     }
@@ -227,6 +383,67 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         return details.stream().mapToInt(item -> safeInt(item.getPlannedQty())).sum();
     }
 
+    private String resolveOrderSupplier(InboundOrderCreateRequest request) {
+        String requestSupplier = trimToNull(request.getSupplier());
+        if (requestSupplier != null) {
+            return requestSupplier;
+        }
+
+        List<String> supplierNames = request.getDetails().stream()
+                .map(InboundOrderCreateDetailRequest::getSupplierName)
+                .map(this::trimToNull)
+                .filter(Objects::nonNull)
+                .distinct()
+                .collect(Collectors.toList());
+        if (supplierNames.size() == 1) {
+            return supplierNames.get(0);
+        }
+        return "多供应商";
+    }
+
+    private int calculatePackageCount(Integer plannedQty, Integer packagingCapacity) {
+        int planned = safeInt(plannedQty);
+        int capacity = safeInt(packagingCapacity);
+        if (planned <= 0 || capacity <= 0) {
+            return 1;
+        }
+        return (planned + capacity - 1) / capacity;
+    }
+
+    private double calculateBoxCount(Integer qty, Integer packagingCapacity) {
+        int quantity = safeInt(qty);
+        int capacity = safeInt(packagingCapacity);
+        if (quantity <= 0 || capacity <= 0) {
+            return 0D;
+        }
+        return Math.round(quantity * 10D / capacity) / 10D;
+    }
+
+    private int calculateLabelQty(int remainingQty, int packagingCapacity) {
+        if (remainingQty <= 0) {
+            return 0;
+        }
+        if (packagingCapacity <= 0) {
+            return remainingQty;
+        }
+        return Math.min(remainingQty, packagingCapacity);
+    }
+
+    private String generateKanbanNo(InboundOrder order, InboundOrderDetail detail, int packageSeq) {
+        String date = LocalDateTime.now().format(KANBAN_DATE_FORMATTER);
+        String safeMaterialCode = detail.getMaterialCode().replaceAll("[^A-Za-z0-9-]", "");
+        for (int attempt = 0; attempt < 100; attempt++) {
+            String kanbanNo = "R-" + date + "-" + order.getDocNo() + "-" + safeMaterialCode + "-" + detail.getLineNo() + "-" + packageSeq;
+            if (attempt > 0) {
+                kanbanNo = kanbanNo + "-" + attempt;
+            }
+            if (!inboundKanbanLabelRepository.existsByKanbanNo(kanbanNo)) {
+                return kanbanNo;
+            }
+        }
+        throw new IllegalStateException("看板号生成失败，请稍后重试");
+    }
+
     private void updateInventoryStocks(InboundOrder order,
                                        List<InboundOrderDetail> details,
                                        Map<Long, Integer> receiveQtyByDetailId,
@@ -240,7 +457,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             }
 
             InventoryStock stock = inventoryStockRepository
-                    .findByMaterialCodeAndSupplier(detail.getMaterialCode(), order.getSupplier())
+                    .findByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName())
                     .orElseGet(() -> createInventoryStock(order, detail, operator, now));
 
             stock.setMaterialName(detail.getMaterialName());
@@ -263,7 +480,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                                                 LocalDateTime now) {
         InventoryStock stock = new InventoryStock();
         stock.setMaterialCode(detail.getMaterialCode());
-        stock.setSupplier(order.getSupplier());
+        stock.setSupplier(detail.getSupplierName());
         stock.setOnHandQty(0);
         stock.setLastInboundDocNo(null);
         stock.setLastInboundAt(null);
@@ -272,6 +489,15 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         stock.setCreatedAt(now);
         stock.setUpdatedAt(now);
         return stock;
+    }
+
+    private void updateOrderSummary(InboundOrder order, List<InboundOrderDetail> details, String operator, LocalDateTime now) {
+        order.setItemCount(details.size());
+        order.setPlannedTotalQty(details.stream().mapToInt(item -> safeInt(item.getPlannedQty())).sum());
+        order.setActualTotalQty(details.stream().mapToInt(item -> safeInt(item.getActualQty())).sum());
+        order.setStatus(calculateStatus(order.getPlannedTotalQty(), order.getActualTotalQty()));
+        order.setUpdatedBy(operator);
+        order.setUpdatedAt(now);
     }
 
     private Specification<InboundOrder> buildOrderSpecification(String docNo, String supplier, String status) {
@@ -329,12 +555,19 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 .map(detail -> new InboundOrderDetailDTO(
                         detail.getId(),
                         detail.getLineNo(),
+                        detail.getSupplierCode(),
+                        detail.getSupplierName(),
                         detail.getMaterialCode(),
                         detail.getMaterialName(),
+                        detail.getPackageModel(),
                         detail.getPackagingCapacity(),
                         detail.getPlannedQty(),
                         detail.getActualQty(),
                         Math.max(safeInt(detail.getPlannedQty()) - safeInt(detail.getActualQty()), 0),
+                        detail.getPackageCount(),
+                        calculateBoxCount(detail.getPlannedQty(), detail.getPackagingCapacity()),
+                        detail.getWarehouseArea(),
+                        detail.getTransferStatus(),
                         detail.getRemark()
                 ))
                 .collect(Collectors.toList());
@@ -345,26 +578,18 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             return Collections.emptyList();
         }
 
-        List<String> materialCodes = details.stream()
-                .map(InboundOrderDetail::getMaterialCode)
-                .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-
-        if (materialCodes.isEmpty()) {
-            return Collections.emptyList();
+        List<InventoryStock> stocks = new ArrayList<>();
+        Set<String> seenKeys = new HashSet<>();
+        for (InboundOrderDetail detail : details) {
+            String key = detail.getSupplierName() + "::" + detail.getMaterialCode();
+            if (!seenKeys.add(key)) {
+                continue;
+            }
+            inventoryStockRepository.findByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName())
+                    .ifPresent(stocks::add);
         }
 
-        Map<String, InventoryStock> stockByMaterialCode = inventoryStockRepository
-                .findBySupplierAndMaterialCodeIn(order.getSupplier(), materialCodes)
-                .stream()
-                .collect(Collectors.toMap(InventoryStock::getMaterialCode, stock -> stock));
-
-        return details.stream()
-                .map(InboundOrderDetail::getMaterialCode)
-                .distinct()
-                .map(stockByMaterialCode::get)
-                .filter(Objects::nonNull)
+        return stocks.stream()
                 .map(stock -> new InventoryStockDTO(
                         stock.getMaterialCode(),
                         stock.getMaterialName(),
@@ -374,6 +599,52 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                         stock.getLastInboundAt()
                 ))
                 .collect(Collectors.toList());
+    }
+
+    private InboundKanbanLabel findLabelByScanValue(String kanbanNoOrPayload) {
+        String kanbanNo = parseKanbanNo(kanbanNoOrPayload);
+        return inboundKanbanLabelRepository.findByKanbanNo(kanbanNo)
+                .orElseThrow(() -> new EntityNotFoundException("看板不存在"));
+    }
+
+    private String parseKanbanNo(String kanbanNoOrPayload) {
+        String value = trimToNull(kanbanNoOrPayload);
+        if (value == null) {
+            throw new IllegalArgumentException("看板号不能为空");
+        }
+        if (value.startsWith(QR_PREFIX)) {
+            return value.substring(QR_PREFIX.length()).trim();
+        }
+        return value;
+    }
+
+    private List<InboundKanbanLabelDTO> toKanbanLabelDTOs(List<InboundKanbanLabel> labels) {
+        return labels.stream().map(this::toKanbanLabelDTO).collect(Collectors.toList());
+    }
+
+    private InboundKanbanLabelDTO toKanbanLabelDTO(InboundKanbanLabel label) {
+        return new InboundKanbanLabelDTO(
+                label.getId(),
+                label.getInboundOrderId(),
+                label.getInboundOrderDetailId(),
+                label.getDocNo(),
+                label.getKanbanNo(),
+                label.getQrPayload(),
+                label.getMaterialCode(),
+                label.getMaterialName(),
+                label.getSupplierCode(),
+                label.getSupplierName(),
+                label.getPackageModel(),
+                label.getWarehouseArea(),
+                label.getLabelQty(),
+                label.getPackageSeq(),
+                label.getPackageTotal(),
+                label.getTransferStatus(),
+                label.getLabelStatus(),
+                label.getPrintedAt(),
+                label.getReceivedAt(),
+                label.getReceivedBy()
+        );
     }
 
     private int safeInt(Integer value) {
@@ -386,6 +657,11 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         }
         String trimmed = value.trim();
         return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private String defaultIfBlank(String value, String defaultValue) {
+        String trimmed = trimToNull(value);
+        return trimmed == null ? defaultValue : trimmed;
     }
 
     private String normalizeOperator(String operator) {

@@ -4,6 +4,7 @@ import com.example.wms.dto.ApiResult;
 import com.example.wms.dto.inbound.InboundOrderCreateRequest;
 import com.example.wms.dto.inbound.InboundOrderDetailResponse;
 import com.example.wms.dto.inbound.InboundOrderPageResponse;
+import com.example.wms.dto.inbound.InboundKanbanLabelDTO;
 import com.example.wms.dto.inbound.InboundReceiveRequest;
 import com.example.wms.service.InboundOrderService;
 import org.springframework.security.core.Authentication;
@@ -11,6 +12,7 @@ import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.web.bind.annotation.*;
 
 import javax.validation.Valid;
+import java.util.List;
 
 @RestController
 @RequestMapping("/api/inbound/orders")
@@ -52,6 +54,16 @@ public class InboundOrderController {
     ) {
         InboundOrderDetailResponse data = inboundOrderService.receiveOrder(id, request, currentUsername());
         return ApiResult.success("手工入库成功", data);
+    }
+
+    @PostMapping("/{id}/kanban-labels/generate")
+    public ApiResult<List<InboundKanbanLabelDTO>> generateKanbanLabels(@PathVariable Long id) {
+        return ApiResult.success("看板生成成功", inboundOrderService.generateKanbanLabels(id, currentUsername()));
+    }
+
+    @GetMapping("/{id}/kanban-labels")
+    public ApiResult<List<InboundKanbanLabelDTO>> listKanbanLabels(@PathVariable Long id) {
+        return ApiResult.success(inboundOrderService.listKanbanLabels(id));
     }
 
     private String currentUsername() {

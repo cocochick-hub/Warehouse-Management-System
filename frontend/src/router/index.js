@@ -59,6 +59,12 @@ const routes = [
             name: 'InboundManual',
             component: () => import('@/views/inbound/Manual.vue'),
             meta: { title: '手工入库' }
+          },
+          {
+            path: 'scan',
+            name: 'InboundScan',
+            component: () => import('@/views/inbound/Scan.vue'),
+            meta: { title: '扫码入库' }
           }
         ]
       },
