@@ -16,4 +16,6 @@ public interface InboundOrderRepository extends JpaRepository<InboundOrder, Long
     Optional<InboundOrder> findByDocNo(String docNo);
 
     boolean existsByDocNo(String docNo);
+
+    int countByStatusNot(String status);
 }

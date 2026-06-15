@@ -6,8 +6,8 @@
           <div class="stat-body">
             <div class="stat-info">
               <div class="stat-label">待入库单</div>
-              <div class="stat-value">5</div>
-              <div class="stat-trend">今日新增 +2</div>
+              <div class="stat-value">{{ stats.pendingInbound }}</div>
+              <div class="stat-trend">待处理</div>
             </div>
             <el-icon :size="48" color="#409eff"><Download /></el-icon>
           </div>
@@ -18,8 +18,8 @@
           <div class="stat-body">
             <div class="stat-info">
               <div class="stat-label">待出库单</div>
-              <div class="stat-value">3</div>
-              <div class="stat-trend">今日新增 +1</div>
+              <div class="stat-value">{{ stats.pendingOutbound }}</div>
+              <div class="stat-trend">待处理</div>
             </div>
             <el-icon :size="48" color="#67c23a"><Upload /></el-icon>
           </div>
@@ -30,7 +30,7 @@
           <div class="stat-body">
             <div class="stat-info">
               <div class="stat-label">低储预警</div>
-              <div class="stat-value warning">2</div>
+              <div class="stat-value warning">{{ stats.lowStockAlert }}</div>
               <div class="stat-trend">需及时补货</div>
             </div>
             <el-icon :size="48" color="#e6a23c"><WarningFilled /></el-icon>
@@ -42,8 +42,8 @@
           <div class="stat-body">
             <div class="stat-info">
               <div class="stat-label">总物料数</div>
-              <div class="stat-value">128</div>
-              <div class="stat-trend">涵盖 32 个供应商</div>
+              <div class="stat-value">{{ stats.totalMaterials }}</div>
+              <div class="stat-trend">涵盖 {{ stats.totalSuppliers || '-' }} 个供应商</div>
             </div>
             <el-icon :size="48" color="#909399"><Box /></el-icon>
           </div>
@@ -94,7 +94,7 @@
             <div class="health-item">
               <div class="health-label">库存健康度</div>
               <div class="health-value">
-                <el-progress :percentage="85" :stroke-width="12" striped />
+                <el-progress :percentage="healthStats.healthPercent" :stroke-width="12" striped />
               </div>
             </div>
             <el-divider />
@@ -102,17 +102,17 @@
               <div class="status-row">
                 <span class="status-dot dot-normal" />
                 <span>库存正常</span>
-                <span class="status-count">120 项</span>
+                <span class="status-count">{{ healthStats.normal }} 项</span>
               </div>
               <div class="status-row">
                 <span class="status-dot dot-warning" />
                 <span>低储预警</span>
-                <span class="status-count">2 项</span>
+                <span class="status-count">{{ healthStats.lowAlert }} 项</span>
               </div>
               <div class="status-row">
                 <span class="status-dot dot-danger" />
                 <span>高储预警</span>
-                <span class="status-count">6 项</span>
+                <span class="status-count">{{ healthStats.highAlert }} 项</span>
               </div>
             </div>
           </div>
@@ -149,12 +149,28 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardDataApi } from '@/api/dashboard'
 
 const router = useRouter()
 const todoList = ref([])
+
+const stats = reactive({
+  pendingInbound: 0,
+  pendingOutbound: 0,
+  lowStockAlert: 0,
+  totalMaterials: 0,
+  totalSuppliers: null,
+  todayOutbound: null
+})
+
+const healthStats = reactive({
+  healthPercent: 0,
+  normal: 0,
+  lowAlert: 0,
+  highAlert: 0
+})
 
 function handleViewAll() {
   router.push('/inbound/order')
@@ -171,7 +187,14 @@ function handleAction(row) {
 function loadDashboardData() {
   getDashboardDataApi().then(res => {
     const data = res.data
-    todoList.value = data.pendingTasks.map(task => ({
+    stats.pendingInbound = data.pendingInbound ?? 0
+    stats.pendingOutbound = data.pendingOutbound ?? 0
+    stats.lowStockAlert = data.lowStockAlert ?? 0
+    stats.totalMaterials = data.totalMaterials ?? 0
+    stats.totalSuppliers = data.totalSuppliers ?? null
+    stats.todayOutbound = data.todayOutbound ?? null
+
+    todoList.value = (data.pendingTasks || []).map(task => ({
       type: task.type,
       docNo: task.docNo,
       supplier: task.supplier,
@@ -179,8 +202,13 @@ function loadDashboardData() {
       statusColor: task.statusColor,
       date: task.date
     }))
-  }).catch(() => {
 
+    healthStats.healthPercent = data.healthPercent ?? 0
+    healthStats.normal = data.normalCount ?? 0
+    healthStats.lowAlert = data.lowAlertCount ?? 0
+    healthStats.highAlert = data.highAlertCount ?? 0
+  }).catch(() => {
+    // keep default zeros
   })
 }
 

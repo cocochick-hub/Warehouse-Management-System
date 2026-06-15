@@ -1,0 +1,31 @@
+server:
+  port: 8081
+
+spring:
+  datasource:
+    url: jdbc:h2:mem:wms_test;MODE=MySQL;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
+    username: sa
+    password:
+    driver-class-name: org.h2.Driver
+  jpa:
+    hibernate:
+      ddl-auto: none
+    show-sql: true
+    properties:
+      hibernate:
+        format_sql: true
+    open-in-view: false
+  sql:
+    init:
+      mode: always
+      continue-on-error: true
+      encoding: UTF-8
+
+jwt:
+  secret: WmsJwtSecretKey2026WarehouseManagementSystemByTest
+  expiration: 86400000
+  header: Authorization
+
+logging:
+  level:
+    com.example.wms: debug

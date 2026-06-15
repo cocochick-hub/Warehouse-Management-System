@@ -22,4 +22,16 @@ public class OutboundOrder extends BaseEntity {
 
     @Column(nullable = false, length = 20)
     private String status;
+
+    @Column(name = "item_count", nullable = false)
+    private Integer itemCount = 0;
+
+    @Column(name = "planned_total_qty", nullable = false)
+    private Integer plannedTotalQty = 0;
+
+    @Column(name = "actual_total_qty", nullable = false)
+    private Integer actualTotalQty = 0;
+
+    @Column(length = 255)
+    private String remark;
 }

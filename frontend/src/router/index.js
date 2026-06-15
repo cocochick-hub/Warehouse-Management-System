@@ -83,6 +83,12 @@ const routes = [
             name: 'OutboundManual',
             component: () => import('@/views/outbound/Manual.vue'),
             meta: { title: '手工出库' }
+          },
+          {
+            path: 'history',
+            name: 'OutboundHistory',
+            component: () => import('@/views/outbound/History.vue'),
+            meta: { title: '出库历史' }
           }
         ]
       },
