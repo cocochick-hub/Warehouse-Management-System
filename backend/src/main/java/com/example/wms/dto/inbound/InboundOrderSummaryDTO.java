@@ -18,6 +18,7 @@ public class InboundOrderSummaryDTO {
     private Integer itemCount;
     private Integer plannedTotalQty;
     private Integer actualTotalQty;
+    private String transferStatus;
     private String remark;
     private String createdBy;
     private String updatedBy;

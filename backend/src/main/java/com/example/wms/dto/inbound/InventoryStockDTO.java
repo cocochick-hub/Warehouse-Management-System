@@ -17,4 +17,6 @@ public class InventoryStockDTO {
     private Integer onHandQty;
     private String lastInboundDocNo;
     private LocalDateTime lastInboundAt;
+    private String transferStatus;
+    private String warehouseArea;
 }

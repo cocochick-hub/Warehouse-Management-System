@@ -26,4 +26,6 @@ public interface InboundOrderService {
     InboundKanbanLabelDTO getScanLabel(String kanbanNoOrPayload);
 
     InboundOrderDetailResponse receiveByScan(InboundScanReceiveRequest request, String operator);
+
+    InboundOrderPageResponse listHistory(String docNo, String supplier, String materialCode, String transferStatus, String warehouseArea, Integer page, Integer size);
 }

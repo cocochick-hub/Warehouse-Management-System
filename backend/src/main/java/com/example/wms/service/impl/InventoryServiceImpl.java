@@ -27,11 +27,14 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public InventoryStockPageResponse listStocks(String materialCode, String materialName, String supplier, Integer page, Integer size) {
+    public InventoryStockPageResponse listStocks(String materialCode, String materialName, String supplier,
+                                                  String transferStatus, String warehouseArea,
+                                                  Integer page, Integer size) {
         int safePage = page == null || page < 1 ? 1 : page;
         int safeSize = size == null || size < 1 ? 10 : size;
         Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.DESC, "lastInboundAt"));
-        Page<InventoryStock> resultPage = inventoryStockRepository.findAll(buildSpecification(materialCode, materialName, supplier), pageable);
+        Page<InventoryStock> resultPage = inventoryStockRepository.findAll(
+                buildSpecification(materialCode, materialName, supplier, transferStatus, warehouseArea), pageable);
         List<InventoryStockDTO> records = resultPage.getContent().stream()
                 .map(item -> new InventoryStockDTO(
                         item.getMaterialCode(),
@@ -39,18 +42,23 @@ public class InventoryServiceImpl implements InventoryService {
                         item.getSupplier(),
                         item.getOnHandQty(),
                         item.getLastInboundDocNo(),
-                        item.getLastInboundAt()
+                        item.getLastInboundAt(),
+                        item.getTransferStatus(),
+                        item.getWarehouseArea()
                 ))
                 .collect(Collectors.toList());
         return new InventoryStockPageResponse((int) resultPage.getTotalElements(), safePage, safeSize, records);
     }
 
-    private Specification<InventoryStock> buildSpecification(String materialCode, String materialName, String supplier) {
+    private Specification<InventoryStock> buildSpecification(String materialCode, String materialName, String supplier,
+                                                              String transferStatus, String warehouseArea) {
         return (root, query, criteriaBuilder) -> {
             List<Predicate> predicates = new ArrayList<>();
             String materialCodeKeyword = trimToNull(materialCode);
             String materialNameKeyword = trimToNull(materialName);
             String supplierKeyword = trimToNull(supplier);
+            String tsKeyword = trimToNull(transferStatus);
+            String waKeyword = trimToNull(warehouseArea);
 
             if (materialCodeKeyword != null) {
                 predicates.add(criteriaBuilder.like(root.get("materialCode"), "%" + materialCodeKeyword + "%"));
@@ -60,6 +68,12 @@ public class InventoryServiceImpl implements InventoryService {
             }
             if (supplierKeyword != null) {
                 predicates.add(criteriaBuilder.like(root.get("supplier"), "%" + supplierKeyword + "%"));
+            }
+            if (tsKeyword != null) {
+                predicates.add(criteriaBuilder.equal(root.get("transferStatus"), tsKeyword));
+            }
+            if (waKeyword != null) {
+                predicates.add(criteriaBuilder.like(root.get("warehouseArea"), "%" + waKeyword + "%"));
             }
 
             return criteriaBuilder.and(predicates.toArray(new Predicate[0]));

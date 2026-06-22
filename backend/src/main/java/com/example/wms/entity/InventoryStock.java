@@ -41,4 +41,10 @@ public class InventoryStock extends BaseEntity {
 
     @Column(name = "last_inbound_at")
     private LocalDateTime lastInboundAt;
+
+    @Column(name = "transfer_status", length = 20)
+    private String transferStatus;
+
+    @Column(name = "warehouse_area", length = 100)
+    private String warehouseArea;
 }

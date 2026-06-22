@@ -1,14 +1,14 @@
 <template>
-  <PageContainer title="库存报表">
+  <PageContainer title="入库历史">
     <el-form :model="query" inline>
-      <el-form-item label="物料号">
-        <el-input v-model="query.materialCode" placeholder="物料号" clearable />
-      </el-form-item>
-      <el-form-item label="物料名称">
-        <el-input v-model="query.materialName" placeholder="物料名称" clearable />
+      <el-form-item label="单号">
+        <el-input v-model="query.docNo" placeholder="入库单号" clearable />
       </el-form-item>
       <el-form-item label="供应商">
-        <el-input v-model="query.supplier" placeholder="供应商名称" clearable style="width: 180px" />
+        <el-input v-model="query.supplier" placeholder="供应商名称" clearable style="width: 160px" />
+      </el-form-item>
+      <el-form-item label="物料号">
+        <el-input v-model="query.materialCode" placeholder="物料号" clearable style="width: 150px" />
       </el-form-item>
       <el-form-item label="转包状态">
         <el-select v-model="query.transferStatus" placeholder="全部" clearable style="width: 120px">
@@ -35,10 +35,16 @@
 
     <el-table v-loading="loading" :data="tableData" stripe border style="width: 100%">
       <el-table-column type="index" label="序号" width="60" />
-      <el-table-column prop="materialCode" label="物料号" width="150" />
-      <el-table-column prop="materialName" label="物料名称" min-width="160" />
-      <el-table-column prop="supplier" label="供应商" min-width="170" />
-      <el-table-column prop="onHandQty" label="当前库存" width="110" />
+      <el-table-column prop="docNo" label="入库单号" width="180" />
+      <el-table-column prop="supplier" label="供应商" min-width="160" />
+      <el-table-column prop="itemCount" label="零件种类数" width="100" />
+      <el-table-column prop="plannedTotalQty" label="计划总数" width="90" />
+      <el-table-column prop="actualTotalQty" label="实收总数" width="90" />
+      <el-table-column prop="status" label="状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="inboundStatusType(row.status)" size="small">{{ row.status }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="transferStatus" label="转包状态" width="100">
         <template #default="{ row }">
           <el-tag :type="row.transferStatus === '转包' ? 'warning' : 'info'" size="small">
@@ -46,11 +52,15 @@
           </el-tag>
         </template>
       </el-table-column>
-      <el-table-column prop="warehouseArea" label="库区" width="110" />
-      <el-table-column prop="lastInboundDocNo" label="最近入库单号" width="190" />
-      <el-table-column prop="lastInboundAt" label="最近入库时间" width="180">
+      <el-table-column prop="updatedAt" label="最近入库时间" width="180">
         <template #default="{ row }">
-          {{ formatDateTime(row.lastInboundAt) }}
+          {{ formatDateTime(row.updatedAt) }}
+        </template>
+      </el-table-column>
+      <el-table-column label="操作" width="150" fixed="right">
+        <template #default="{ row }">
+          <el-button type="primary" link size="small" @click="handleView(row.id)">查看详情</el-button>
+          <el-button type="info" link size="small" @click="handlePrintOrder(row.id)">打印单据</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -67,25 +77,41 @@
         @size-change="handleSizeChange"
       />
     </div>
+
+    <InboundOrderDetailDialog
+      v-model:visible="detailVisible"
+      :detail="currentDetail"
+    />
+
+    <InboundOrderPrintDialog
+      v-model:visible="printOrderVisible"
+      :detail="printOrderDetail"
+    />
   </PageContainer>
 </template>
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import PageContainer from '@/components/PageContainer.vue'
-import { getInventoryStocksApi } from '@/api/inventory'
-import { formatDateTime } from '@/utils/inbound'
+import InboundOrderDetailDialog from '@/components/inbound/InboundOrderDetailDialog.vue'
+import InboundOrderPrintDialog from '@/components/inbound/InboundOrderPrintDialog.vue'
+import { getInboundHistoryApi, getInboundOrderDetailApi } from '@/api/inbound'
+import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const query = reactive({
-  materialCode: '',
-  materialName: '',
+  docNo: '',
   supplier: '',
+  materialCode: '',
   transferStatus: '',
   warehouseArea: ''
 })
 
 const loading = ref(false)
 const tableData = ref([])
+const detailVisible = ref(false)
+const printOrderVisible = ref(false)
+const currentDetail = ref(null)
+const printOrderDetail = ref(null)
 const pagination = reactive({
   page: 1,
   size: 10,
@@ -93,16 +119,16 @@ const pagination = reactive({
 })
 
 onMounted(() => {
-  fetchStocks()
+  fetchHistory()
 })
 
-async function fetchStocks() {
+async function fetchHistory() {
   loading.value = true
   try {
-    const { data } = await getInventoryStocksApi({
-      materialCode: query.materialCode || undefined,
-      materialName: query.materialName || undefined,
+    const { data } = await getInboundHistoryApi({
+      docNo: query.docNo || undefined,
       supplier: query.supplier || undefined,
+      materialCode: query.materialCode || undefined,
       transferStatus: query.transferStatus || undefined,
       warehouseArea: query.warehouseArea || undefined,
       page: pagination.page,
@@ -120,29 +146,49 @@ async function fetchStocks() {
 
 function handleSearch() {
   pagination.page = 1
-  fetchStocks()
+  fetchHistory()
 }
 
 function handleReset() {
-  query.materialCode = ''
-  query.materialName = ''
+  query.docNo = ''
   query.supplier = ''
+  query.materialCode = ''
   query.transferStatus = ''
   query.warehouseArea = ''
   pagination.page = 1
   pagination.size = 10
-  fetchStocks()
+  fetchHistory()
 }
 
 function handlePageChange(page) {
   pagination.page = page
-  fetchStocks()
+  fetchHistory()
 }
 
 function handleSizeChange(size) {
   pagination.size = size
   pagination.page = 1
-  fetchStocks()
+  fetchHistory()
+}
+
+async function handleView(id) {
+  try {
+    const { data } = await getInboundOrderDetailApi(id)
+    currentDetail.value = data
+    detailVisible.value = true
+  } catch (error) {
+    currentDetail.value = null
+  }
+}
+
+async function handlePrintOrder(id) {
+  try {
+    const { data } = await getInboundOrderDetailApi(id)
+    printOrderDetail.value = data
+    printOrderVisible.value = true
+  } catch (error) {
+    printOrderDetail.value = null
+  }
 }
 </script>
 

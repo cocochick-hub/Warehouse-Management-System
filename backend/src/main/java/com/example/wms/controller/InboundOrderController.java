@@ -66,6 +66,21 @@ public class InboundOrderController {
         return ApiResult.success(inboundOrderService.listKanbanLabels(id));
     }
 
+    @GetMapping("/history")
+    public ApiResult<InboundOrderPageResponse> listHistory(
+            @RequestParam(required = false) String docNo,
+            @RequestParam(required = false) String supplier,
+            @RequestParam(required = false) String materialCode,
+            @RequestParam(required = false) String transferStatus,
+            @RequestParam(required = false) String warehouseArea,
+            @RequestParam(required = false) Integer page,
+            @RequestParam(required = false) Integer size
+    ) {
+        InboundOrderPageResponse data = inboundOrderService.listHistory(
+                docNo, supplier, materialCode, transferStatus, warehouseArea, page, size);
+        return ApiResult.success(data);
+    }
+
     private String currentUsername() {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         if (authentication == null || authentication.getName() == null) {

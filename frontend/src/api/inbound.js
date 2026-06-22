@@ -59,3 +59,11 @@ export function receiveInboundScanApi(data) {
     data
   })
 }
+
+export function getInboundHistoryApi(params) {
+  return request({
+    url: '/inbound/orders/history',
+    method: 'get',
+    params
+  })
+}

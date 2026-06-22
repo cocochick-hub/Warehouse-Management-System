@@ -65,6 +65,12 @@ const routes = [
             name: 'InboundScan',
             component: () => import('@/views/inbound/Scan.vue'),
             meta: { title: '扫码入库' }
+          },
+          {
+            path: 'history',
+            name: 'InboundHistory',
+            component: () => import('@/views/inbound/History.vue'),
+            meta: { title: '入库历史' }
           }
         ]
       },
