@@ -2,7 +2,7 @@
   <el-dialog
     :model-value="visible"
     title="创建入库单"
-    width="880px"
+    width="1200px"
     destroy-on-close
     @close="handleClose"
   >
@@ -18,6 +18,13 @@
         />
       </el-form-item>
 
+      <el-form-item label="转包状态" prop="transferStatus">
+        <el-radio-group v-model="form.transferStatus">
+          <el-radio value="不转包">不转包</el-radio>
+          <el-radio value="转包">转包</el-radio>
+        </el-radio-group>
+      </el-form-item>
+
       <div class="section-head">
         <span>入库明细</span>
         <el-button type="primary" link @click="addDetail">
@@ -28,14 +35,15 @@
       <el-table :data="form.details" border class="detail-table">
         <el-table-column type="index" label="行号" width="60" />
         <el-table-column label="供应商" min-width="180">
-          <template #default="{ row }">
+          <template #default="{ row, $index }">
             <el-select
               v-model="row.supplierCode"
               placeholder="选择供应商"
               filterable
               clearable
               style="width: 100%"
-              @change="(value) => handleRowSupplierChange(row, value)"
+              :disabled="$index > 0 && form.details[0].supplierCode"
+              @change="(value) => handleRowSupplierChange(row, value, $index)"
             >
               <el-option
                 v-for="supplier in supplierOptions"
@@ -66,12 +74,12 @@
             </el-select>
           </template>
         </el-table-column>
-        <el-table-column label="物料名称" min-width="160">
+        <el-table-column label="物料名称" min-width="150">
           <template #default="{ row }">
             <el-input v-model="row.materialName" placeholder="自动带出" maxlength="100" readonly />
           </template>
         </el-table-column>
-        <el-table-column label="包装容量" width="120">
+        <el-table-column label="包装容量" width="110">
           <template #default="{ row }">
             <el-input-number
               v-model="row.packagingCapacity"
@@ -82,7 +90,7 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="计划数量" width="120">
+        <el-table-column label="计划数量" width="110">
           <template #default="{ row }">
             <el-input-number
               v-model="row.plannedQty"
@@ -93,12 +101,21 @@
             />
           </template>
         </el-table-column>
-        <el-table-column label="箱数" width="120">
+        <el-table-column label="箱数" width="90">
           <template #default="{ row }">
             <div class="package-note">{{ boxCountText(row) }}</div>
           </template>
         </el-table-column>
-        <el-table-column label="备注" min-width="150">
+        <el-table-column label="库区" width="130">
+          <template #default="{ row }">
+            <el-select v-model="row.warehouseArea" placeholder="库区" style="width: 100%">
+              <el-option label="默认库区" value="默认库区" />
+              <el-option label="库区1" value="库区1" />
+              <el-option label="库区2" value="库区2" />
+            </el-select>
+          </template>
+        </el-table-column>
+        <el-table-column label="备注" min-width="140">
           <template #default="{ row }">
             <el-input v-model="row.remark" placeholder="可选" maxlength="255" />
           </template>
@@ -163,7 +180,6 @@ function createDefaultDetail() {
     plannedQty: 1,
     packageCount: 1,
     warehouseArea: '默认库区',
-    transferStatus: '不转包',
     materialOptions: [],
     remark: ''
   }
@@ -172,6 +188,7 @@ function createDefaultDetail() {
 function createDefaultForm() {
   return {
     remark: '',
+    transferStatus: '不转包',
     details: [createDefaultDetail()]
   }
 }
@@ -179,6 +196,7 @@ function createDefaultForm() {
 function resetForm() {
   const next = createDefaultForm()
   form.remark = next.remark
+  form.transferStatus = next.transferStatus
   form.details.splice(0, form.details.length, ...next.details)
   formRef.value?.clearValidate?.()
 }
@@ -208,6 +226,8 @@ function validateDetails() {
     return false
   }
 
+  // Single supplier check: all details must have the same supplier code
+  const supplierCodes = new Set()
   const materialKeys = new Set()
   for (const item of form.details) {
     if (!item.supplierCode?.trim()) {
@@ -227,12 +247,19 @@ function validateDetails() {
       return false
     }
 
+    supplierCodes.add(item.supplierCode.trim())
+
     const key = `${item.supplierCode.trim()}::${item.materialCode.trim()}`
     if (materialKeys.has(key)) {
       ElMessage.warning('同一张入库单中不允许重复选择同一供应商下的同一物料')
       return false
     }
     materialKeys.add(key)
+  }
+
+  if (supplierCodes.size > 1) {
+    ElMessage.warning('一张入库单只能包含同一个供应商的物料，请分批创建')
+    return false
   }
 
   return true
@@ -243,7 +270,7 @@ async function fetchSuppliers() {
   supplierOptions.value = data || []
 }
 
-async function handleRowSupplierChange(row, supplierCode) {
+async function handleRowSupplierChange(row, supplierCode, index) {
   const selectedSupplier = supplierOptions.value.find((item) => item.supplierCode === supplierCode)
   row.supplierName = selectedSupplier?.supplierName || ''
   row.materialCode = ''
@@ -258,6 +285,21 @@ async function handleRowSupplierChange(row, supplierCode) {
 
   const { data } = await getMaterialsApi({ supplierCode: selectedSupplier.supplierCode })
   row.materialOptions = data || []
+
+  // For single-supplier enforcement: if first row's supplier changes, update all other rows
+  if (index === 0) {
+    for (let i = 1; i < form.details.length; i++) {
+      const otherRow = form.details[i]
+      otherRow.supplierCode = supplierCode
+      otherRow.supplierName = selectedSupplier.supplierName
+      otherRow.materialCode = ''
+      otherRow.materialName = ''
+      otherRow.packageModel = ''
+      otherRow.packagingCapacity = 0
+      otherRow.packageCount = 1
+      otherRow.materialOptions = data || []
+    }
+  }
 }
 
 function handleMaterialChange(row, materialNo) {
@@ -289,7 +331,8 @@ function handleSubmit() {
 
     const supplierNames = Array.from(new Set(form.details.map((item) => item.supplierName).filter(Boolean)))
     emit('submit', {
-      supplier: supplierNames.length === 1 ? supplierNames[0] : '多供应商',
+      supplier: supplierNames.length === 1 ? supplierNames[0] : (supplierNames[0] || '未知供应商'),
+      transferStatus: form.transferStatus || '不转包',
       remark: form.remark?.trim() || '',
       details: form.details.map((item) => ({
         supplierCode: item.supplierCode.trim(),
@@ -301,7 +344,7 @@ function handleSubmit() {
         plannedQty: item.plannedQty,
         packageCount: calculatePackageCount(item.plannedQty, item.packagingCapacity),
         warehouseArea: item.warehouseArea?.trim() || '默认库区',
-        transferStatus: item.transferStatus?.trim() || '不转包',
+        transferStatus: form.transferStatus || '不转包',
         remark: item.remark?.trim() || ''
       }))
     })

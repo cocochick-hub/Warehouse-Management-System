@@ -54,6 +54,10 @@
           <el-icon><Aim /></el-icon>
           <span>扫码入库</span>
         </el-menu-item>
+        <el-menu-item index="/inbound/history">
+          <el-icon><Clock /></el-icon>
+          <span>入库历史</span>
+        </el-menu-item>
       </el-sub-menu>
 
       <el-sub-menu index="outbound">

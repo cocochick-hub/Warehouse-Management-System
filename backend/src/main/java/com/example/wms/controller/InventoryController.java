@@ -23,9 +23,11 @@ public class InventoryController {
             @RequestParam(required = false) String materialCode,
             @RequestParam(required = false) String materialName,
             @RequestParam(required = false) String supplier,
+            @RequestParam(required = false) String transferStatus,
+            @RequestParam(required = false) String warehouseArea,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
     ) {
-        return ApiResult.success(inventoryService.listStocks(materialCode, materialName, supplier, page, size));
+        return ApiResult.success(inventoryService.listStocks(materialCode, materialName, supplier, transferStatus, warehouseArea, page, size));
     }
 }

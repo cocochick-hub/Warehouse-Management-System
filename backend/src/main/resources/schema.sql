@@ -120,6 +120,7 @@ CREATE TABLE inbound_order (
     item_count        INT          NOT NULL DEFAULT 0 COMMENT '明细条数',
     planned_total_qty INT          NOT NULL DEFAULT 0 COMMENT '计划总数',
     actual_total_qty  INT          NOT NULL DEFAULT 0 COMMENT '实收总数',
+    transfer_status   VARCHAR(20)  DEFAULT '不转包' COMMENT '转包状态：不转包/转包',
     remark            VARCHAR(255) DEFAULT NULL COMMENT '备注',
     created_by        VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
     updated_by        VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
@@ -200,6 +201,8 @@ CREATE TABLE inventory_stock (
     on_hand_qty         INT          NOT NULL DEFAULT 0 COMMENT '当前库存数量',
     last_inbound_doc_no VARCHAR(50)  DEFAULT NULL COMMENT '最近入库单号',
     last_inbound_at     DATETIME     DEFAULT NULL COMMENT '最近入库时间',
+    transfer_status     VARCHAR(20)  DEFAULT '不转包' COMMENT '转包状态：不转包/转包',
+    warehouse_area      VARCHAR(100) DEFAULT '默认库区' COMMENT '库区',
     created_by          VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
     updated_by          VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
     created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -210,10 +213,10 @@ CREATE TABLE inventory_stock (
 
 -- 5. 入库演示数据
 INSERT INTO inbound_order (
-    id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, remark, created_by, updated_by
+    id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, transfer_status, remark, created_by, updated_by
 ) VALUES
-    (1, 'IN20240601001', '多供应商', '未入库', 2, 180, 0, '演示未入库单据', 'operator', 'operator'),
-    (2, 'IN20240601002', '长春一汽配套', '部分完成', 2, 180, 70, '演示部分完成单据', 'operator', 'operator');
+    (1, 'IN20240601001', '多供应商', '未入库', 2, 180, 0, '不转包', '演示未入库单据', 'operator', 'operator'),
+    (2, 'IN20240601002', '长春一汽配套', '部分完成', 2, 180, 70, '转包', '演示部分完成单据', 'operator', 'operator');
 
 INSERT INTO inbound_order_detail (
     id, inbound_order_id, doc_no, line_no, supplier_code, supplier_name, material_code, material_name, package_model, packaging_capacity, planned_qty, actual_qty, package_count, warehouse_area, transfer_status, remark, created_by, updated_by
@@ -224,10 +227,10 @@ INSERT INTO inbound_order_detail (
     (4, 2, 'IN20240601002', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 'BOX-HAR-15', 15, 120, 40, 8, '默认库区', '不转包', '已部分入库', 'operator', 'operator');
 
 INSERT INTO inventory_stock (
-    id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, created_by, updated_by
+    id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, transfer_status, warehouse_area, created_by, updated_by
 ) VALUES
-    (1, 'MAT-ELE-001', '控制器模块', '宁波电子模组', 30, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system'),
-    (2, 'MAT-ELE-002', '线束组件', '宁波电子模组', 40, 'IN20240601002', '2026-06-07 10:00:00', 'system', 'system');
+    (1, 'MAT-ELE-001', '控制器模块', '宁波电子模组', 30, 'IN20240601002', '2026-06-07 10:00:00', '转包', '默认库区', 'system', 'system'),
+    (2, 'MAT-ELE-002', '线束组件', '宁波电子模组', 40, 'IN20240601002', '2026-06-07 10:00:00', '转包', '默认库区', 'system', 'system');
 
 -- ============================================================================
 -- 6. 出库单表

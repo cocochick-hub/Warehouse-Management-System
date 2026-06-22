@@ -41,16 +41,24 @@
           <el-tag :type="inboundStatusType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="transferStatus" label="转包状态" width="100">
+        <template #default="{ row }">
+          <el-tag :type="row.transferStatus === '转包' ? 'warning' : 'info'" size="small">
+            {{ row.transferStatus || '不转包' }}
+          </el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="210" fixed="right">
+      <el-table-column label="操作" width="280" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleView(row.id)">查看</el-button>
           <el-button type="success" link size="small" @click="goManualInbound(row.id)">入库</el-button>
           <el-button type="warning" link size="small" @click="handlePrintKanban(row.id)">打印看板</el-button>
+          <el-button type="info" link size="small" @click="handlePrintOrder(row.id)">打印单据</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -83,6 +91,11 @@
       v-model:visible="printVisible"
       :labels="printLabels"
     />
+
+    <InboundOrderPrintDialog
+      v-model:visible="printOrderVisible"
+      :detail="printOrderDetail"
+    />
   </PageContainer>
 </template>
 
@@ -94,6 +107,7 @@ import PageContainer from '@/components/PageContainer.vue'
 import InboundOrderForm from '@/components/inbound/InboundOrderForm.vue'
 import InboundOrderDetailDialog from '@/components/inbound/InboundOrderDetailDialog.vue'
 import InboundKanbanPrintDialog from '@/components/inbound/InboundKanbanPrintDialog.vue'
+import InboundOrderPrintDialog from '@/components/inbound/InboundOrderPrintDialog.vue'
 import {
   createInboundOrderApi,
   generateInboundKanbanLabelsApi,
@@ -116,8 +130,10 @@ const tableData = ref([])
 const createVisible = ref(false)
 const detailVisible = ref(false)
 const printVisible = ref(false)
+const printOrderVisible = ref(false)
 const currentDetail = ref(null)
 const printLabels = ref([])
+const printOrderDetail = ref(null)
 const pagination = reactive({
   page: 1,
   size: 10,
@@ -200,6 +216,16 @@ async function handlePrintKanban(id) {
   const { data } = await generateInboundKanbanLabelsApi(id)
   printLabels.value = data || []
   printVisible.value = true
+}
+
+async function handlePrintOrder(id) {
+  try {
+    const { data } = await getInboundOrderDetailApi(id)
+    printOrderDetail.value = data
+    printOrderVisible.value = true
+  } catch (error) {
+    printOrderDetail.value = null
+  }
 }
 
 function goManualInbound(id) {

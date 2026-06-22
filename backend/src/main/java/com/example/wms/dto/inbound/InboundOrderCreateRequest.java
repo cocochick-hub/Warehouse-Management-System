@@ -13,6 +13,9 @@ public class InboundOrderCreateRequest {
     @Size(max = 100, message = "供应商长度不能超过100")
     private String supplier;
 
+    @Size(max = 20, message = "转包状态长度不能超过20")
+    private String transferStatus;
+
     @Size(max = 255, message = "备注长度不能超过255")
     private String remark;
 

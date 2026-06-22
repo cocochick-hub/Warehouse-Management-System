@@ -19,6 +19,8 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import javax.persistence.criteria.Predicate;
+import javax.persistence.criteria.Root;
+import javax.persistence.criteria.Subquery;
 import javax.persistence.EntityNotFoundException;
 import java.time.LocalDateTime;
 import java.time.format.DateTimeFormatter;
@@ -93,6 +95,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         order.setItemCount(request.getDetails().size());
         order.setPlannedTotalQty(sumPlannedQty(request.getDetails()));
         order.setActualTotalQty(0);
+        order.setTransferStatus(resolveOrderTransferStatus(request));
         order.setRemark(trimToNull(request.getRemark()));
         order.setCreatedBy(currentOperator);
         order.setUpdatedBy(currentOperator);
@@ -336,6 +339,62 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(allDetails), toInventoryStockDTOs(order, allDetails));
     }
 
+    @Override
+    public InboundOrderPageResponse listHistory(String docNo, String supplier, String materialCode,
+                                                 String transferStatus, String warehouseArea,
+                                                 Integer page, Integer size) {
+        int safePage = page == null || page < 1 ? 1 : page;
+        int safeSize = size == null || size < 1 ? 10 : size;
+        Pageable pageable = PageRequest.of(safePage - 1, safeSize, Sort.by(Sort.Direction.DESC, "updatedAt"));
+
+        String docNoKeyword = trimToNull(docNo);
+        String supplierKeyword = trimToNull(supplier);
+        String mtlKeyword = trimToNull(materialCode);
+        String tsKeyword = trimToNull(transferStatus);
+        String waKeyword = trimToNull(warehouseArea);
+
+        Specification<InboundOrder> orderSpec = (root, query, criteriaBuilder) -> {
+            List<Predicate> predicates = new ArrayList<>();
+            // Only show orders that have been actually received
+            predicates.add(criteriaBuilder.greaterThan(root.get("actualTotalQty"), 0));
+            if (docNoKeyword != null) {
+                predicates.add(criteriaBuilder.like(root.get("docNo"), "%" + docNoKeyword + "%"));
+            }
+            if (supplierKeyword != null) {
+                predicates.add(criteriaBuilder.like(root.get("supplier"), "%" + supplierKeyword + "%"));
+            }
+
+            // When detail-level filters are present, build a subquery to find matching order IDs
+            if (mtlKeyword != null || tsKeyword != null || waKeyword != null) {
+                Subquery<Long> detailSubquery = query.subquery(Long.class);
+                Root<InboundOrderDetail> detailRoot = detailSubquery.from(InboundOrderDetail.class);
+                List<Predicate> detailPreds = new ArrayList<>();
+                detailPreds.add(criteriaBuilder.equal(detailRoot.get("inboundOrderId"), root.get("id")));
+                if (mtlKeyword != null) {
+                    detailPreds.add(criteriaBuilder.like(detailRoot.get("materialCode"), "%" + mtlKeyword + "%"));
+                }
+                if (tsKeyword != null) {
+                    detailPreds.add(criteriaBuilder.equal(detailRoot.get("transferStatus"), tsKeyword));
+                }
+                if (waKeyword != null) {
+                    detailPreds.add(criteriaBuilder.like(detailRoot.get("warehouseArea"), "%" + waKeyword + "%"));
+                }
+                detailSubquery.select(detailRoot.get("id"))
+                        .where(detailPreds.toArray(new Predicate[0]));
+                predicates.add(criteriaBuilder.exists(detailSubquery));
+            }
+
+            return criteriaBuilder.and(predicates.toArray(new Predicate[0]));
+        };
+
+        Page<InboundOrder> resultPage = inboundOrderRepository.findAll(orderSpec, pageable);
+        List<InboundOrderSummaryDTO> records = resultPage.getContent().stream()
+                .map(this::toSummaryDTO)
+                .collect(Collectors.toList());
+
+        return new InboundOrderPageResponse((int) resultPage.getTotalElements(), safePage, safeSize, records);
+    }
+
     private InboundOrder findOrder(Long id) {
         return inboundOrderRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("入库单不存在"));
@@ -346,6 +405,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             throw new IllegalArgumentException("入库单至少包含一条明细");
         }
 
+        Set<String> supplierCodes = new HashSet<>();
         Set<String> supplierMaterialKeys = new HashSet<>();
         for (InboundOrderCreateDetailRequest detail : request.getDetails()) {
             String supplierCode = trimToNull(detail.getSupplierCode());
@@ -364,6 +424,11 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             if (!supplierMaterialKeys.add(key)) {
                 throw new IllegalArgumentException("同一张入库单中不允许重复选择同一供应商下的同一物料");
             }
+            supplierCodes.add(supplierCode);
+        }
+
+        if (supplierCodes.size() > 1) {
+            throw new IllegalArgumentException("一张入库单只能包含同一个供应商的物料，请分批创建");
         }
     }
 
@@ -389,16 +454,26 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             return requestSupplier;
         }
 
-        List<String> supplierNames = request.getDetails().stream()
+        return request.getDetails().stream()
                 .map(InboundOrderCreateDetailRequest::getSupplierName)
                 .map(this::trimToNull)
                 .filter(Objects::nonNull)
-                .distinct()
-                .collect(Collectors.toList());
-        if (supplierNames.size() == 1) {
-            return supplierNames.get(0);
+                .findFirst()
+                .orElse("未知供应商");
+    }
+
+    private String resolveOrderTransferStatus(InboundOrderCreateRequest request) {
+        String requestTransferStatus = trimToNull(request.getTransferStatus());
+        if (requestTransferStatus != null) {
+            return requestTransferStatus;
         }
-        return "多供应商";
+
+        return request.getDetails().stream()
+                .map(InboundOrderCreateDetailRequest::getTransferStatus)
+                .map(this::trimToNull)
+                .filter(Objects::nonNull)
+                .findFirst()
+                .orElse(DEFAULT_TRANSFER_STATUS);
     }
 
     private int calculatePackageCount(Integer plannedQty, Integer packagingCapacity) {
@@ -464,6 +539,8 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             stock.setOnHandQty(safeInt(stock.getOnHandQty()) + receiveQty);
             stock.setLastInboundDocNo(order.getDocNo());
             stock.setLastInboundAt(now);
+            stock.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), DEFAULT_TRANSFER_STATUS));
+            stock.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), DEFAULT_WAREHOUSE_AREA));
             stock.setUpdatedBy(operator);
             stock.setUpdatedAt(now);
             stocksToSave.add(stock);
@@ -484,6 +561,8 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         stock.setOnHandQty(0);
         stock.setLastInboundDocNo(null);
         stock.setLastInboundAt(null);
+        stock.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), DEFAULT_TRANSFER_STATUS));
+        stock.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), DEFAULT_WAREHOUSE_AREA));
         stock.setCreatedBy(operator);
         stock.setUpdatedBy(operator);
         stock.setCreatedAt(now);
@@ -542,6 +621,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 order.getItemCount(),
                 order.getPlannedTotalQty(),
                 order.getActualTotalQty(),
+                order.getTransferStatus(),
                 order.getRemark(),
                 order.getCreatedBy(),
                 order.getUpdatedBy(),
@@ -596,7 +676,9 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                         stock.getSupplier(),
                         stock.getOnHandQty(),
                         stock.getLastInboundDocNo(),
-                        stock.getLastInboundAt()
+                        stock.getLastInboundAt(),
+                        stock.getTransferStatus(),
+                        stock.getWarehouseArea()
                 ))
                 .collect(Collectors.toList());
     }

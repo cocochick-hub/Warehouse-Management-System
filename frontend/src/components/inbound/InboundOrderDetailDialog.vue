@@ -16,6 +16,11 @@
         <el-descriptions-item label="零件种类数">{{ detail.order.itemCount }}</el-descriptions-item>
         <el-descriptions-item label="计划总数">{{ detail.order.plannedTotalQty }}</el-descriptions-item>
         <el-descriptions-item label="实收总数">{{ detail.order.actualTotalQty }}</el-descriptions-item>
+        <el-descriptions-item label="转包状态">
+          <el-tag :type="detail.order.transferStatus === '转包' ? 'warning' : 'info'" size="small">
+            {{ detail.order.transferStatus || '不转包' }}
+          </el-tag>
+        </el-descriptions-item>
         <el-descriptions-item label="创建人">{{ detail.order.createdBy || '-' }}</el-descriptions-item>
         <el-descriptions-item label="创建时间">{{ formatDateTime(detail.order.createdAt) }}</el-descriptions-item>
         <el-descriptions-item label="备注" :span="2">{{ detail.order.remark || '-' }}</el-descriptions-item>
@@ -31,8 +36,16 @@
         <el-table-column prop="plannedQty" label="计划数量" width="100" />
         <el-table-column prop="actualQty" label="实收数量" width="100" />
         <el-table-column prop="pendingQty" label="待入库数量" width="110" />
+        <el-table-column prop="warehouseArea" label="库区" width="110" />
+        <el-table-column prop="transferStatus" label="转包状态" width="100">
+          <template #default="{ row }">
+            <el-tag :type="row.transferStatus === '转包' ? 'warning' : 'info'" size="small">
+              {{ row.transferStatus || '不转包' }}
+            </el-tag>
+          </template>
+        </el-table-column>
         <el-table-column prop="boxCount" label="箱数" width="90" />
-        <el-table-column prop="remark" label="备注" min-width="140" />
+        <el-table-column prop="remark" label="备注" min-width="120" />
       </el-table>
 
       <template v-if="detail.inventoryStocks?.length">
@@ -42,6 +55,8 @@
           <el-table-column prop="materialName" label="物料名称" min-width="160" />
           <el-table-column prop="supplier" label="供应商" min-width="140" />
           <el-table-column prop="onHandQty" label="当前库存" width="100" />
+          <el-table-column prop="transferStatus" label="转包状态" width="100" />
+          <el-table-column prop="warehouseArea" label="库区" width="100" />
           <el-table-column prop="lastInboundDocNo" label="最近入库单号" width="190" />
           <el-table-column prop="lastInboundAt" label="最近入库时间" width="180">
             <template #default="{ row }">

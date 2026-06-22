@@ -33,6 +33,9 @@ public class InboundOrder extends BaseEntity {
     @Column(name = "actual_total_qty", nullable = false)
     private Integer actualTotalQty;
 
+    @Column(name = "transfer_status", length = 20)
+    private String transferStatus;
+
     @Column(length = 255)
     private String remark;
 }
