@@ -38,3 +38,18 @@ export function listHistory(params) {
     params
   })
 }
+
+export function getOutboundScanLabel(kanbanNo) {
+  return request({
+    url: `/outbound/scan/labels/${encodeURIComponent(kanbanNo)}`,
+    method: 'get'
+  })
+}
+
+export function issueByScan(data) {
+  return request({
+    url: '/outbound/scan/issue',
+    method: 'post',
+    data
+  })
+}

@@ -73,6 +73,10 @@
           <el-icon><EditPen /></el-icon>
           <span>手工出库</span>
         </el-menu-item>
+        <el-menu-item index="/outbound/scan">
+          <el-icon><Aim /></el-icon>
+          <span>扫码出库</span>
+        </el-menu-item>
         <el-menu-item index="/outbound/history">
           <el-icon><Clock /></el-icon>
           <span>出库历史</span>

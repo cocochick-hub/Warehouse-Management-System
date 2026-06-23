@@ -46,7 +46,7 @@
           {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="180" fixed="right">
+      <el-table-column label="操作" width="240" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleView(row.id)">详情</el-button>
           <el-button
@@ -56,6 +56,7 @@
             size="small"
             @click="handleIssue(row.id)"
           >出库</el-button>
+          <el-button type="warning" link size="small" @click="handlePrint(row.id)">打印</el-button>
         </template>
       </el-table-column>
     </el-table>
@@ -90,6 +91,12 @@
       :order-id="currentOrderId"
       @success="handleIssueSuccess"
     />
+
+    <OutboundPrintDialog
+      v-model:visible="printVisible"
+      :order="currentPrintOrder"
+      :details="currentPrintDetails"
+    />
   </PageContainer>
 </template>
 
@@ -100,7 +107,8 @@ import PageContainer from '@/components/PageContainer.vue'
 import OutboundOrderForm from '@/components/outbound/OutboundOrderForm.vue'
 import OutboundOrderDetailDialog from '@/components/outbound/OutboundOrderDetailDialog.vue'
 import OutboundIssueDialog from '@/components/outbound/OutboundIssueDialog.vue'
-import { listOrders, createOrder } from '@/api/outbound'
+import OutboundPrintDialog from '@/components/outbound/OutboundPrintDialog.vue'
+import { listOrders, createOrder, getOrderDetail } from '@/api/outbound'
 import { getSuppliersApi } from '@/api/basic'
 
 const query = reactive({
@@ -115,7 +123,10 @@ const tableData = ref([])
 const createVisible = ref(false)
 const detailVisible = ref(false)
 const issueVisible = ref(false)
+const printVisible = ref(false)
 const currentOrderId = ref(null)
+const currentPrintOrder = ref(null)
+const currentPrintDetails = ref([])
 const supplierOptions = ref([])
 const pagination = reactive({
   page: 1,
@@ -190,6 +201,17 @@ function handleView(id) {
 function handleIssue(id) {
   currentOrderId.value = id
   issueVisible.value = true
+}
+
+async function handlePrint(id) {
+  try {
+    const { data } = await getOrderDetail(id)
+    currentPrintOrder.value = data.order
+    currentPrintDetails.value = data.details || []
+    printVisible.value = true
+  } catch {
+    // error handled by interceptor
+  }
 }
 
 async function handleSubmitCreate(payload) {

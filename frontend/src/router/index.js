@@ -91,6 +91,12 @@ const routes = [
             meta: { title: '手工出库' }
           },
           {
+            path: 'scan',
+            name: 'OutboundScan',
+            component: () => import('@/views/outbound/Scan.vue'),
+            meta: { title: '扫码出库' }
+          },
+          {
             path: 'history',
             name: 'OutboundHistory',
             component: () => import('@/views/outbound/History.vue'),

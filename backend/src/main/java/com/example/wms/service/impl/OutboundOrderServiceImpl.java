@@ -27,6 +27,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
     private static final String STATUS_PENDING = "待出库";
     private static final String STATUS_PARTIAL = "部分完成";
     private static final String STATUS_COMPLETED = "已完成";
+    private static final String LABEL_STATUS_RECEIVED = "已入库";
     private static final DateTimeFormatter DOC_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final AtomicInteger DOC_NO_SEQUENCE = new AtomicInteger(0);
 
@@ -36,19 +37,22 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
     private final InboundOrderRepository inboundOrderRepository;
     private final InboundOrderDetailRepository inboundOrderDetailRepository;
     private final InventoryStockRepository inventoryStockRepository;
+    private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
 
     public OutboundOrderServiceImpl(OutboundOrderRepository outboundOrderRepository,
                                     OutboundOrderDetailRepository outboundOrderDetailRepository,
                                     OutboundHistoryRepository outboundHistoryRepository,
                                     InboundOrderRepository inboundOrderRepository,
                                     InboundOrderDetailRepository inboundOrderDetailRepository,
-                                    InventoryStockRepository inventoryStockRepository) {
+                                    InventoryStockRepository inventoryStockRepository,
+                                    InboundKanbanLabelRepository inboundKanbanLabelRepository) {
         this.outboundOrderRepository = outboundOrderRepository;
         this.outboundOrderDetailRepository = outboundOrderDetailRepository;
         this.outboundHistoryRepository = outboundHistoryRepository;
         this.inboundOrderRepository = inboundOrderRepository;
         this.inboundOrderDetailRepository = inboundOrderDetailRepository;
         this.inventoryStockRepository = inventoryStockRepository;
+        this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
     }
 
     @Override
@@ -213,11 +217,189 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         return resultPage.map(this::toHistoryDTO);
     }
 
+    @Override
+    public OutboundScanLabelResponse getOutboundScanLabel(String kanbanNo) {
+        InboundKanbanLabel label = findKanbanLabel(kanbanNo);
+
+        InboundOrderDetail detail = inboundOrderDetailRepository.findById(label.getInboundOrderDetailId())
+                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+
+        InboundOrder inboundOrder = inboundOrderRepository.findById(label.getInboundOrderId())
+                .orElseThrow(() -> new EntityNotFoundException("入库单不存在"));
+
+        List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(label.getInboundOrderDetailId());
+        int consumedQty = consumed.stream().mapToInt(h -> safeInt(h.getIssueQty())).sum();
+        int availableQty = Math.max(safeInt(detail.getActualQty()) - consumedQty, 0);
+
+        boolean fifoWarning = false;
+        String fifoMessage = null;
+        String earliestDocNo = null;
+
+        List<InboundOrderDetail> allDetailsForMaterial = inboundOrderDetailRepository
+                .findByMaterialCodeAndSupplierName(detail.getMaterialCode(), detail.getSupplierName());
+
+        LocalDateTime earliestCreatedAt = null;
+
+        for (InboundOrderDetail otherDetail : allDetailsForMaterial) {
+            InboundOrder otherOrder = inboundOrderRepository.findByDocNo(otherDetail.getDocNo()).orElse(null);
+            if (otherOrder == null) {
+                continue;
+            }
+            if (!STATUS_COMPLETED.equals(otherOrder.getStatus())
+                    && !STATUS_PARTIAL.equals(otherOrder.getStatus())) {
+                continue;
+            }
+
+            LocalDateTime orderCreatedAt = otherOrder.getCreatedAt();
+            if (orderCreatedAt != null
+                    && (earliestCreatedAt == null || orderCreatedAt.isBefore(earliestCreatedAt))) {
+                earliestCreatedAt = orderCreatedAt;
+                earliestDocNo = otherOrder.getDocNo();
+            }
+        }
+
+        if (earliestDocNo != null && !earliestDocNo.equals(inboundOrder.getDocNo())) {
+            fifoWarning = true;
+            fifoMessage = "当前出库的库存并非最早入库，是否要继续出库？";
+        }
+
+        return new OutboundScanLabelResponse(
+                label.getId(),
+                label.getKanbanNo(),
+                label.getDocNo(),
+                label.getMaterialCode(),
+                label.getMaterialName(),
+                label.getSupplierCode(),
+                label.getSupplierName(),
+                label.getLabelQty(),
+                label.getWarehouseArea(),
+                label.getLabelStatus(),
+                label.getInboundOrderId(),
+                label.getInboundOrderDetailId(),
+                fifoWarning,
+                fifoMessage,
+                earliestDocNo,
+                availableQty
+        );
+    }
+
+    @Override
+    @Transactional
+    public OutboundOrderDetailResponse issueByScan(OutboundScanIssueRequest request, String operator) {
+        InboundKanbanLabel label = findKanbanLabel(request.getKanbanNo());
+        if (!LABEL_STATUS_RECEIVED.equals(label.getLabelStatus())) {
+            throw new IllegalStateException("该看板尚未完成入库，无法出库");
+        }
+
+        if (request.getOutboundOrderId() == null) {
+            throw new IllegalArgumentException("出库单ID不能为空");
+        }
+
+        OutboundOrder order = findOrder(request.getOutboundOrderId());
+        if (STATUS_COMPLETED.equals(order.getStatus())) {
+            throw new IllegalStateException("已完成单据不允许再次出库");
+        }
+
+        InboundOrderDetail inboundDetail = inboundOrderDetailRepository
+                .findById(label.getInboundOrderDetailId())
+                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+
+        List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(inboundDetail.getId());
+        int consumedQty = consumed.stream().mapToInt(h -> safeInt(h.getIssueQty())).sum();
+        int availableQty = Math.max(safeInt(inboundDetail.getActualQty()) - consumedQty, 0);
+
+        int issueQty = safeInt(request.getIssueQty());
+        if (issueQty <= 0) {
+            throw new IllegalArgumentException("出库数量必须大于0");
+        }
+        if (issueQty > availableQty) {
+            throw new IllegalStateException(
+                    "库存不足，当前看板可用 " + availableQty + "，需要 " + issueQty);
+        }
+
+        List<OutboundOrderDetail> details = outboundOrderDetailRepository
+                .findByOutboundOrderIdOrderByLineNoAsc(order.getId());
+
+        OutboundOrderDetail matchingDetail = null;
+        for (OutboundOrderDetail detail : details) {
+            if (label.getMaterialCode().equals(detail.getMaterialCode())
+                    && label.getSupplierName().equals(detail.getSupplierName())) {
+                matchingDetail = detail;
+                break;
+            }
+        }
+        if (matchingDetail == null) {
+            throw new IllegalArgumentException("出库单中未找到与看板匹配的明细行（物料：" + label.getMaterialCode() + "，需求方：" + label.getSupplierName() + "）");
+        }
+
+        int nextActualQty = safeInt(matchingDetail.getActualQty()) + issueQty;
+        if (nextActualQty > safeInt(matchingDetail.getPlannedQty())) {
+            throw new IllegalArgumentException("物料 " + matchingDetail.getMaterialCode() + " 的累计实发数量不能大于计划数量");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+        String warehouseArea = defaultIfBlank(request.getWarehouseArea(), defaultIfBlank(matchingDetail.getWarehouseArea(), "默认库区"));
+
+        OutboundHistory history = new OutboundHistory();
+        history.setOutboundOrderId(order.getId());
+        history.setOutboundDetailId(matchingDetail.getId());
+        history.setDocNo(order.getDocNo());
+        history.setMaterialCode(matchingDetail.getMaterialCode());
+        history.setMaterialName(matchingDetail.getMaterialName());
+        history.setSupplierName(matchingDetail.getSupplierName());
+        history.setIssueQty(issueQty);
+        history.setSourceInboundDoc(inboundDetail.getDocNo());
+        history.setSourceDetailId(inboundDetail.getId());
+        history.setWarehouseArea(warehouseArea);
+        history.setIssuedBy(currentOperator);
+        history.setCreatedAt(now);
+        outboundHistoryRepository.save(history);
+
+        matchingDetail.setActualQty(nextActualQty);
+        matchingDetail.setUpdatedBy(currentOperator);
+        matchingDetail.setUpdatedAt(now);
+        outboundOrderDetailRepository.save(matchingDetail);
+
+        InventoryStock stock = inventoryStockRepository
+                .findByMaterialCodeAndSupplier(matchingDetail.getMaterialCode(), matchingDetail.getSupplierName())
+                .orElse(null);
+        if (stock == null) {
+            throw new IllegalStateException(
+                    "物料 " + matchingDetail.getMaterialCode() + "（需求方 " + matchingDetail.getSupplierName() + "）不存在库存记录，请先入库");
+        }
+        int onHand = safeInt(stock.getOnHandQty());
+        if (onHand < issueQty) {
+            throw new IllegalStateException(
+                    "物料 " + matchingDetail.getMaterialCode() + " 当前库存 " + onHand + "，不足 " + issueQty);
+        }
+        stock.setOnHandQty(onHand - issueQty);
+        stock.setUpdatedBy(currentOperator);
+        stock.setUpdatedAt(now);
+        inventoryStockRepository.save(stock);
+
+        order.setItemCount(order.getItemCount());
+        order.setPlannedTotalQty(order.getPlannedTotalQty());
+        order.setActualTotalQty(details.stream().mapToInt(item -> safeInt(item.getActualQty())).sum());
+        order.setStatus(calculateStatus(order.getPlannedTotalQty(), order.getActualTotalQty()));
+        order.setUpdatedBy(currentOperator);
+        order.setUpdatedAt(now);
+        outboundOrderRepository.save(order);
+
+        details = outboundOrderDetailRepository.findByOutboundOrderIdOrderByLineNoAsc(order.getId());
+        return new OutboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details), toInventoryStockDTOs(details));
+    }
+
     // ==================== Private Helpers ====================
 
     private OutboundOrder findOrder(Long id) {
         return outboundOrderRepository.findById(id)
                 .orElseThrow(() -> new EntityNotFoundException("出库单不存在"));
+    }
+
+    private InboundKanbanLabel findKanbanLabel(String kanbanNo) {
+        return inboundKanbanLabelRepository.findByKanbanNo(kanbanNo)
+                .orElseThrow(() -> new EntityNotFoundException("看板不存在"));
     }
 
     private void validateCreateRequest(OutboundOrderCreateRequest request) {
