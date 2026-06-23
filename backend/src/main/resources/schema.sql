@@ -183,43 +183,9 @@ CREATE TABLE IF NOT EXISTS outbound_order (
     UNIQUE (doc_no)
 );
 
-CREATE TABLE IF NOT EXISTS outbound_order_detail (
-    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    outbound_order_id   BIGINT       NOT NULL,
-    doc_no              VARCHAR(50)  NOT NULL,
-    line_no             INT          NOT NULL,
-    supplier_code       VARCHAR(50)  NOT NULL,
-    supplier_name       VARCHAR(100) NOT NULL,
-    material_code       VARCHAR(50)  NOT NULL,
-    material_name       VARCHAR(100) NOT NULL,
-    planned_qty         INT          NOT NULL,
-    actual_qty          INT          NOT NULL DEFAULT 0,
-    warehouse_area      VARCHAR(100) DEFAULT '默认库区',
-    remark              VARCHAR(255) DEFAULT NULL,
-    created_by          VARCHAR(50)  DEFAULT 'system',
-    updated_by          VARCHAR(50)  DEFAULT 'system',
-    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id),
-    UNIQUE (outbound_order_id, supplier_code, material_code)
-);
-
-CREATE TABLE IF NOT EXISTS outbound_history (
-    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    outbound_order_id   BIGINT       NOT NULL,
-    outbound_detail_id  BIGINT       NOT NULL,
-    doc_no              VARCHAR(50)  NOT NULL,
-    material_code       VARCHAR(50)  NOT NULL,
-    material_name       VARCHAR(100) NOT NULL,
-    supplier_name       VARCHAR(100) NOT NULL,
-    issue_qty           INT          NOT NULL,
-    source_inbound_doc  VARCHAR(50)  DEFAULT NULL,
-    source_detail_id    BIGINT       DEFAULT NULL,
-    warehouse_area      VARCHAR(100) DEFAULT '默认库区',
-    issued_by           VARCHAR(50)  DEFAULT 'system',
-    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id)
-);
+-- 出库单明细表和出库历史表将在后面的出库单区域统一重建
+DROP TABLE IF EXISTS outbound_order_detail;
+DROP TABLE IF EXISTS outbound_history;
 
 -- 9. 看板标签表（简化版）
 DROP TABLE IF EXISTS inbound_kanban_label;
@@ -350,12 +316,17 @@ INSERT INTO inventory_stock (
 -- ============================================================================
 -- 6. 出库单表
 -- ============================================================================
+DROP TABLE IF EXISTS outbound_order_detail;
 DROP TABLE IF EXISTS outbound_order;
 CREATE TABLE outbound_order (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY  COMMENT '主键ID',
     doc_no          VARCHAR(50)  NOT NULL UNIQUE       COMMENT '出库单号',
     supplier        VARCHAR(100) NOT NULL              COMMENT '供应商',
     status          VARCHAR(20)  NOT NULL DEFAULT '待出库' COMMENT '状态：待出库/部分完成/已完成',
+    item_count      INT          NOT NULL DEFAULT 0    COMMENT '明细条数',
+    planned_total_qty INT       NOT NULL DEFAULT 0    COMMENT '计划出库总数',
+    actual_total_qty INT        NOT NULL DEFAULT 0    COMMENT '实际出库总数',
+    remark          VARCHAR(255) DEFAULT NULL          COMMENT '备注',
     created_by      VARCHAR(50)  DEFAULT 'system'     COMMENT '创建人',
     updated_by      VARCHAR(50)  DEFAULT 'system'     COMMENT '更新人',
     created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -363,6 +334,52 @@ CREATE TABLE outbound_order (
     INDEX idx_doc_no (doc_no),
     INDEX idx_status (status)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='出库单表';
+
+-- 出库单明细表
+CREATE TABLE IF NOT EXISTS outbound_order_detail (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    outbound_order_id   BIGINT       NOT NULL,
+    doc_no              VARCHAR(50)  NOT NULL,
+    line_no             INT          NOT NULL,
+    supplier_code       VARCHAR(50)  NOT NULL,
+    supplier_name       VARCHAR(100) NOT NULL,
+    material_code       VARCHAR(50)  NOT NULL,
+    material_name       VARCHAR(100) NOT NULL,
+    planned_qty         INT          NOT NULL,
+    actual_qty          INT          NOT NULL DEFAULT 0,
+    warehouse_area      VARCHAR(100) DEFAULT '默认库区',
+    remark              VARCHAR(255) DEFAULT NULL,
+    created_by          VARCHAR(50)  DEFAULT 'system',
+    updated_by          VARCHAR(50)  DEFAULT 'system',
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id),
+    UNIQUE (outbound_order_id, supplier_code, material_code)
+);
+
+-- 出库历史表
+CREATE TABLE IF NOT EXISTS outbound_history (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    outbound_order_id   BIGINT       NOT NULL,
+    outbound_detail_id  BIGINT       NOT NULL,
+    doc_no              VARCHAR(50)  NOT NULL,
+    material_code       VARCHAR(50)  NOT NULL,
+    material_name       VARCHAR(100) NOT NULL,
+    supplier_name       VARCHAR(100) NOT NULL,
+    issue_qty           INT          NOT NULL,
+    source_inbound_doc  VARCHAR(50)  DEFAULT NULL,
+    source_detail_id    BIGINT       DEFAULT NULL,
+    warehouse_area      VARCHAR(100) DEFAULT '默认库区',
+    issued_by           VARCHAR(50)  DEFAULT NULL,
+    issued_at           TIMESTAMP    DEFAULT NULL,
+    remark              VARCHAR(255) DEFAULT NULL,
+    created_by          VARCHAR(50)  DEFAULT 'system',
+    updated_by          VARCHAR(50)  DEFAULT 'system',
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id),
+    FOREIGN KEY (outbound_detail_id) REFERENCES outbound_order_detail (id)
+);
 
 -- 7. 出库单演示数据
 INSERT INTO outbound_order (doc_no, supplier, status, created_by) VALUES

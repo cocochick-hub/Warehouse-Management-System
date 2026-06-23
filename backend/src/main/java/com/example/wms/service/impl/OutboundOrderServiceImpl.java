@@ -471,7 +471,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                         stock.getSupplier(),
                         stock.getOnHandQty(),
                         stock.getLastInboundDocNo(),
-                        stock.getLastInboundAt()
+                        stock.getLastInboundAt(),
+                        null,
+                        null
                 ))
                 .collect(Collectors.toList());
     }
