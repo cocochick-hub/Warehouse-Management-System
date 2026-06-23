@@ -16,4 +16,6 @@ public interface InboundOrderDetailRepository extends JpaRepository<InboundOrder
     List<InboundOrderDetail> findByDocNoOrderByLineNoAsc(String docNo);
 
     List<InboundOrderDetail> findByInboundOrderIdIn(Collection<Long> inboundOrderIds);
+
+    List<InboundOrderDetail> findByMaterialCodeAndSupplierName(String materialCode, String supplierName);
 }

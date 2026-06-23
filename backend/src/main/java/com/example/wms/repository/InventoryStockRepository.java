@@ -15,4 +15,6 @@ public interface InventoryStockRepository extends JpaRepository<InventoryStock, 
     Optional<InventoryStock> findByMaterialCodeAndSupplier(String materialCode, String supplier);
 
     List<InventoryStock> findBySupplierAndMaterialCodeIn(String supplier, Collection<String> materialCodes);
+
+    int countByOnHandQty(int onHandQty);
 }
