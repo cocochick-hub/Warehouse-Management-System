@@ -297,3 +297,20 @@ CREATE TABLE IF NOT EXISTS demand_detail (
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (batch_id) REFERENCES demand_batch (id)
 );
+
+-- ============================================================================
+-- 高低储预警阈值配置表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS alert_threshold (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    material_code   VARCHAR(50)  NOT NULL,
+    material_name   VARCHAR(100) NOT NULL,
+    supplier        VARCHAR(100) NOT NULL,
+    low_stock_qty   INT          NOT NULL DEFAULT 0,
+    high_stock_qty  INT          NOT NULL DEFAULT 0,
+    created_by      VARCHAR(50)  DEFAULT 'system',
+    updated_by      VARCHAR(50)  DEFAULT 'system',
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (material_code, supplier)
+);

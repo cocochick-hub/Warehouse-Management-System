@@ -472,3 +472,22 @@ CREATE TABLE IF NOT EXISTS demand_detail (
     KEY idx_demand_detail_status (status),
     KEY idx_demand_detail_demand_date (demand_date)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料需求明细表';
+
+-- ============================================================================
+-- 14. 高低储预警阈值配置表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS alert_threshold (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    material_code   VARCHAR(50)  NOT NULL COMMENT '物料号',
+    material_name   VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    supplier        VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
+    low_stock_qty   INT          NOT NULL DEFAULT 0 COMMENT '低储阈值（库存低于此值预警）',
+    high_stock_qty  INT          NOT NULL DEFAULT 0 COMMENT '高储阈值（库存高于此值预警）',
+    created_by      VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by      VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_alert_threshold_material_supplier (material_code, supplier),
+    KEY idx_alert_threshold_material (material_code),
+    KEY idx_alert_threshold_supplier (supplier)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='高低储预警阈值配置表';
