@@ -26,4 +26,7 @@ public class UserInfoDTO {
 
     /** 头像 */
     private String avatar;
+
+    /** 联系电话 */
+    private String phone;
 }

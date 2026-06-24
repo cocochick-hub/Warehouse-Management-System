@@ -22,4 +22,20 @@ public interface UserService {
      * @return 用户信息 DTO
      */
     UserInfoDTO getUserInfo(String username);
+
+    /**
+     * 修改密码
+     * @param username 用户名
+     * @param oldPassword 旧密码
+     * @param newPassword 新密码
+     */
+    void changePassword(String username, String oldPassword, String newPassword);
+
+    /**
+     * 更新用户信息
+     * @param username 用户名
+     * @param phone 联系电话
+     * @return 更新后的用户信息
+     */
+    UserInfoDTO updateUserInfo(String username, String phone);
 }

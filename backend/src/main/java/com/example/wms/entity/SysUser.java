@@ -46,4 +46,8 @@ public class SysUser extends BaseEntity {
     /** 头像 URL */
     @Column(length = 255)
     private String avatar;
+
+    /** 联系电话 */
+    @Column(length = 20)
+    private String phone;
 }

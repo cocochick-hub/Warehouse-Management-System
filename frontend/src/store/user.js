@@ -66,6 +66,14 @@ export const useUserStore = defineStore('user', {
     },
 
     /**
+     * 直接设置用户信息（更新个人信息后使用）
+     */
+    setUserInfo(userInfo) {
+      this.userInfo = userInfo
+      setUser(userInfo)
+    },
+
+    /**
      * 退出登录
      */
     logout() {

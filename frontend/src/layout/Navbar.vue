@@ -64,7 +64,7 @@ const breadcrumb = computed(() => route.meta?.title || '')
 const alertCount = computed(() => 0)
 
 const roleTagType = computed(() => {
-  const map = { admin: 'danger', manager: 'warning', operator: 'info' }
+  const map = { admin: '系统管理员', manager: '仓库经理', operator: '操作员' }
   return map[userStore.role] || 'info'
 })
 
@@ -81,9 +81,9 @@ function handleCommand(command) {
   if (command === 'logout') {
     handleLogout()
   } else if (command === 'profile') {
-    ElMessage.info('个人信息页面开发中')
+    router.push('/profile')
   } else if (command === 'password') {
-    ElMessage.info('修改密码功能开发中')
+    router.push('/profile')
   }
 }
 

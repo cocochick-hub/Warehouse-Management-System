@@ -1,8 +1,10 @@
 package com.example.wms.controller;
 
 import com.example.wms.dto.ApiResult;
+import com.example.wms.dto.ChangePasswordRequest;
 import com.example.wms.dto.LoginRequest;
 import com.example.wms.dto.LoginResponse;
+import com.example.wms.dto.UpdateUserInfoRequest;
 import com.example.wms.dto.UserInfoDTO;
 import com.example.wms.service.UserService;
 import org.springframework.security.core.Authentication;
@@ -53,5 +55,31 @@ public class AuthController {
     @PostMapping("/logout")
     public ApiResult<Void> logout() {
         return ApiResult.success("退出登录成功", null);
+    }
+
+    /**
+     * 修改密码
+     * @param request 旧密码 + 新密码
+     * @return 操作结果
+     */
+    @PutMapping("/changePassword")
+    public ApiResult<Void> changePassword(@Valid @RequestBody ChangePasswordRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        userService.changePassword(username, request.getOldPassword(), request.getNewPassword());
+        return ApiResult.success("密码修改成功", null);
+    }
+
+    /**
+     * 更新用户信息
+     * @param request 用户信息
+     * @return 更新后的用户信息
+     */
+    @PutMapping("/userInfo")
+    public ApiResult<UserInfoDTO> updateUserInfo(@Valid @RequestBody UpdateUserInfoRequest request) {
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        String username = authentication.getName();
+        UserInfoDTO userInfo = userService.updateUserInfo(username, request.getPhone());
+        return ApiResult.success("用户信息更新成功", userInfo);
     }
 }
