@@ -230,7 +230,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 .orElseThrow(() -> new EntityNotFoundException("入库单不存在"));
 
         List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(label.getInboundOrderDetailId());
-        int consumedQty = consumed.stream().mapToInt(h -> safeInt(h.getIssueQty())).sum();
+        int consumedQty = consumed.stream()
+                .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
+                .mapToInt(h -> safeInt(h.getIssueQty())).sum();
         int availableQty = Math.max(safeInt(detail.getActualQty()) - consumedQty, 0);
 
         boolean fifoWarning = false;
@@ -315,7 +317,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
 
         List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(inboundDetail.getId());
-        int consumedQty = consumed.stream().mapToInt(h -> safeInt(h.getIssueQty())).sum();
+        int consumedQty = consumed.stream()
+                .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
+                .mapToInt(h -> safeInt(h.getIssueQty())).sum();
         int availableQty = Math.max(safeInt(inboundDetail.getActualQty()) - consumedQty, 0);
 
         int issueQty = safeInt(request.getIssueQty());
@@ -363,6 +367,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         history.setSourceDetailId(inboundDetail.getId());
         history.setWarehouseArea(warehouseArea);
         history.setIssuedBy(currentOperator);
+        history.setStatus("已出库");
         history.setCreatedAt(now);
         outboundHistoryRepository.save(history);
 
@@ -574,7 +579,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         int totalAvailable = 0;
         for (InboundOrderDetail id : eligible) {
             List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(id.getId());
-            int consumedQty = consumed.stream().mapToInt(h -> safeInt(h.getIssueQty())).sum();
+            int consumedQty = consumed.stream()
+                    .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
+                    .mapToInt(h -> safeInt(h.getIssueQty())).sum();
             int availableQty = safeInt(id.getActualQty()) - consumedQty;
             totalAvailable += Math.max(availableQty, 0);
         }
@@ -593,7 +600,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             }
 
             List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(id.getId());
-            int consumedQty = consumed.stream().mapToInt(h -> safeInt(h.getIssueQty())).sum();
+            int consumedQty = consumed.stream()
+                    .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
+                    .mapToInt(h -> safeInt(h.getIssueQty())).sum();
             int availableQty = safeInt(id.getActualQty()) - consumedQty;
             if (availableQty <= 0) {
                 continue;
@@ -612,6 +621,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             history.setSourceInboundDoc(id.getDocNo());
             history.setSourceDetailId(id.getId());
             history.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), "默认库区"));
+            history.setStatus("已出库");
             history.setIssuedBy(operator);
             history.setCreatedAt(now);
             records.add(history);
@@ -760,7 +770,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 history.getSourceInboundDoc(),
                 history.getWarehouseArea(),
                 history.getIssuedBy(),
-                history.getCreatedAt()
+                history.getCreatedAt(),
+                history.getStatus()
         );
     }
 
@@ -894,6 +905,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         // 2. 出库历史标记已退库
         latestHistory.setStatus(STATUS_RETURNED);
         outboundHistoryRepository.save(latestHistory);
+
+        // 2.1 看板标签恢复为已入库（退库后同一看板可再次出库）
+        label.setLabelStatus(LABEL_STATUS_RECEIVED);
+        inboundKanbanLabelRepository.save(label);
 
         // 3. 检查出库单是否全部退库
         OutboundOrder order = outboundOrderRepository.findById(latestHistory.getOutboundOrderId()).orElse(null);

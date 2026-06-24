@@ -21,4 +21,5 @@ public class OutboundHistoryDTO {
     private String warehouseArea;
     private String issuedBy;
     private LocalDateTime createdAt;
+    private String status;
 }
