@@ -145,6 +145,9 @@
         </el-card>
       </el-col>
     </el-row>
+
+    <!-- AI 预警卡片 -->
+    <AiAlertCards />
   </div>
 </template>
 
@@ -152,6 +155,7 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardDataApi } from '@/api/dashboard'
+import AiAlertCards from '@/components/ai/AiAlertCards.vue'
 
 const router = useRouter()
 const todoList = ref([])

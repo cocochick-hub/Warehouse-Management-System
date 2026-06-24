@@ -157,6 +157,13 @@ const routes = [
         name: 'SealManagement',
         component: () => import('@/views/seal/SealManagement.vue'),
         meta: { title: '封存管理' }
+      },
+      // AI 助手
+      {
+        path: 'ai/chat',
+        name: 'AiChat',
+        component: () => import('@/views/ai/Chat.vue'),
+        meta: { title: 'AI 助手' }
       }
     ]
   },

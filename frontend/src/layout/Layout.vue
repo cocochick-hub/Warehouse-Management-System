@@ -13,6 +13,8 @@
         </el-main>
       </el-container>
     </el-container>
+    <!-- AI 悬浮按钮（全局） -->
+    <AiFloatingButton />
   </div>
 </template>
 
@@ -20,6 +22,7 @@
 import { ref } from 'vue'
 import Sidebar from './Sidebar.vue'
 import Navbar from './Navbar.vue'
+import AiFloatingButton from '@/components/ai/AiFloatingButton.vue'
 
 const isCollapse = ref(false)
 </script>
