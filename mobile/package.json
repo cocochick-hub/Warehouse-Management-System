@@ -7,9 +7,9 @@
     "build:app": "uni build -p app"
   },
   "dependencies": {
+    "vue": "^3.4.0",
     "pinia": "^2.1.0",
-    "vant": "^4.9.0",
-    "@vant/weapp": "^1.11.0"
+    "vant": "^4.9.0"
   },
   "devDependencies": {
     "@dcloudio/uni-app": "latest",
