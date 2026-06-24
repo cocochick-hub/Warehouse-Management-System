@@ -1,0 +1,23 @@
+{
+  "name": "wms-mobile",
+  "version": "1.0.0",
+  "private": true,
+  "scripts": {
+    "dev:app": "uni -p app",
+    "build:app": "uni build -p app"
+  },
+  "dependencies": {
+    "pinia": "^2.1.0",
+    "vant": "^4.9.0",
+    "@vant/weapp": "^1.11.0"
+  },
+  "devDependencies": {
+    "@dcloudio/uni-app": "latest",
+    "@dcloudio/uni-app-plus": "latest",
+    "@dcloudio/uni-components": "latest",
+    "@dcloudio/uni-h5": "latest",
+    "@dcloudio/uni-mp-weixin": "latest",
+    "vite": "^5.2.0",
+    "@dcloudio/vite-plugin-uni": "latest"
+  }
+}

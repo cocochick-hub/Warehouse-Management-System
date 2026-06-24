@@ -1,0 +1,27 @@
+{
+  "name": "WMS仓库管理",
+  "appid": "__UNI__WMS001",
+  "versionName": "1.0.0",
+  "versionCode": "100",
+  "app-plus": {
+    "usingComponents": true,
+    "nvueStyleCompiler": "uni-app",
+    "distribute": {
+      "android": {
+        "permissions": [
+          "<uses-permission android:name=\"android.permission.CAMERA\"/>",
+          "<uses-permission android:name=\"android.permission.INTERNET\"/>",
+          "<uses-feature android:name=\"android.hardware.camera\"/>",
+          "<uses-feature android:name=\"android.hardware.camera.autofocus\"/>"
+        ]
+      }
+    },
+    "splashscreen": {
+      "alwaysShowBeforeRender": true,
+      "autoclose": true
+    }
+  },
+  "uniStatistics": {
+    "enable": false
+  }
+}

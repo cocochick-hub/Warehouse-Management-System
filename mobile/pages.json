@@ -1,0 +1,47 @@
+{
+  "pages": [
+    {
+      "path": "pages/login/index",
+      "style": {
+        "navigationBarTitleText": "WMS 仓库管理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/home/index",
+      "style": {
+        "navigationBarTitleText": "WMS 仓库管理",
+        "navigationStyle": "custom"
+      }
+    },
+    {
+      "path": "pages/inbound-scan/index",
+      "style": {
+        "navigationBarTitleText": "扫码入库"
+      }
+    },
+    {
+      "path": "pages/outbound-scan/index",
+      "style": {
+        "navigationBarTitleText": "扫码出库"
+      }
+    },
+    {
+      "path": "pages/outbound-order/index",
+      "style": {
+        "navigationBarTitleText": "带单出库"
+      }
+    },
+    {
+      "path": "pages/return/index",
+      "style": {
+        "navigationBarTitleText": "退库"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "white",
+    "navigationBarTitleText": "WMS",
+    "navigationBarBackgroundColor": "#1989fa"
+  }
+}
