@@ -108,6 +108,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
+import { useRoute } from 'vue-router'
 import PageContainer from '@/components/PageContainer.vue'
 import OutboundOrderForm from '@/components/outbound/OutboundOrderForm.vue'
 import OutboundOrderDetailDialog from '@/components/outbound/OutboundOrderDetailDialog.vue'
@@ -116,8 +117,10 @@ import OutboundPrintDialog from '@/components/outbound/OutboundPrintDialog.vue'
 import { listOrders, createOrder, getOrderDetail } from '@/api/outbound'
 import { getSuppliersApi } from '@/api/basic'
 
+const route = useRoute()
+
 const query = reactive({
-  docNo: '',
+  docNo: route.query.docNo || '',
   supplier: '',
   status: ''
 })

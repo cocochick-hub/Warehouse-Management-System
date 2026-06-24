@@ -182,9 +182,9 @@ function handleViewAll() {
 
 function handleAction(row) {
   if (row.type === '入库') {
-    router.push('/inbound/order')
+    router.push({ path: '/inbound/order', query: { docNo: row.docNo } })
   } else {
-    router.push('/outbound/order')
+    router.push({ path: '/outbound/order', query: { docNo: row.docNo } })
   }
 }
 

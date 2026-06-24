@@ -102,7 +102,7 @@
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import PageContainer from '@/components/PageContainer.vue'
 import InboundOrderForm from '@/components/inbound/InboundOrderForm.vue'
 import InboundOrderDetailDialog from '@/components/inbound/InboundOrderDetailDialog.vue'
@@ -117,9 +117,10 @@ import {
 import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const router = useRouter()
+const route = useRoute()
 
 const query = reactive({
-  docNo: '',
+  docNo: route.query.docNo || '',
   supplier: '',
   status: ''
 })
