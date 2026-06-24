@@ -197,6 +197,8 @@ public class InboundOrderServiceImpl implements InboundOrderService {
 
         inboundOrderDetailRepository.saveAll(details);
         updateInventoryStocks(order, details, receiveQtyByDetailId, currentOperator, now);
+        // 手动入库时自动生成看板标签（标记为已入库）
+        createKanbanLabelsForReceive(order, details, receiveQtyByDetailId, currentOperator, now);
 
         order.setItemCount(details.size());
         order.setPlannedTotalQty(details.stream().mapToInt(item -> safeInt(item.getPlannedQty())).sum());
@@ -504,6 +506,15 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         return Math.min(remainingQty, packagingCapacity);
     }
 
+    /** 计算指定物料+供应商已封存的看板总数 */
+    private int calculateSealedQtyByMaterial(String materialCode, String supplierName) {
+        return inboundKanbanLabelRepository
+                .findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+                .stream()
+                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .sum();
+    }
+
     private String generateKanbanNo(InboundOrder order, InboundOrderDetail detail, int packageSeq) {
         String date = LocalDateTime.now().format(KANBAN_DATE_FORMATTER);
         String safeMaterialCode = detail.getMaterialCode().replaceAll("[^A-Za-z0-9-]", "");
@@ -517,6 +528,74 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             }
         }
         throw new IllegalStateException("看板号生成失败，请稍后重试");
+    }
+
+    /** 手动入库时自动生成已入库的看板标签 */
+    private void createKanbanLabelsForReceive(InboundOrder order,
+                                               List<InboundOrderDetail> details,
+                                               Map<Long, Integer> receiveQtyByDetailId,
+                                               String operator,
+                                               LocalDateTime now) {
+        List<InboundKanbanLabel> labels = new ArrayList<>();
+        for (InboundOrderDetail detail : details) {
+            int receiveQty = receiveQtyByDetailId.getOrDefault(detail.getId(), 0);
+            if (receiveQty <= 0) continue;
+
+            // 已有看板则将其状态更新为已入库
+            List<InboundKanbanLabel> existing = inboundKanbanLabelRepository
+                    .findByInboundOrderDetailIdIn(Collections.singletonList(detail.getId()));
+            if (!existing.isEmpty()) {
+                for (InboundKanbanLabel existingLabel : existing) {
+                    existingLabel.setLabelStatus("已入库");
+                    existingLabel.setReceivedAt(now);
+                    existingLabel.setReceivedBy(operator);
+                    existingLabel.setUpdatedBy(operator);
+                    existingLabel.setUpdatedAt(now);
+                }
+                inboundKanbanLabelRepository.saveAll(existing);
+                continue;
+            }
+
+            int capacity = safeInt(detail.getPackagingCapacity());
+            if (capacity <= 0 || capacity > receiveQty) {
+                capacity = receiveQty;
+            }
+            int packageTotal = (receiveQty + capacity - 1) / capacity;
+
+            int remainingQty = receiveQty;
+            for (int packageSeq = 1; packageSeq <= packageTotal; packageSeq++) {
+                int labelQty = calculateLabelQty(remainingQty, capacity);
+                remainingQty -= labelQty;
+
+                InboundKanbanLabel label = new InboundKanbanLabel();
+                label.setInboundOrderId(order.getId());
+                label.setInboundOrderDetailId(detail.getId());
+                label.setDocNo(order.getDocNo());
+                label.setKanbanNo(generateKanbanNo(order, detail, packageSeq));
+                label.setQrPayload("QR:" + label.getKanbanNo());
+                label.setMaterialCode(detail.getMaterialCode());
+                label.setMaterialName(detail.getMaterialName());
+                label.setSupplierCode(detail.getSupplierCode());
+                label.setSupplierName(detail.getSupplierName());
+                label.setPackageModel(detail.getPackageModel());
+                label.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), "默认库区"));
+                label.setLabelQty(labelQty);
+                label.setPackageSeq(packageSeq);
+                label.setPackageTotal(packageTotal);
+                label.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), "不转包"));
+                label.setLabelStatus("已入库");
+                label.setReceivedAt(now);
+                label.setReceivedBy(operator);
+                label.setCreatedBy(operator);
+                label.setUpdatedBy(operator);
+                label.setCreatedAt(now);
+                label.setUpdatedAt(now);
+                labels.add(label);
+            }
+        }
+        if (!labels.isEmpty()) {
+            inboundKanbanLabelRepository.saveAll(labels);
+        }
     }
 
     private void updateInventoryStocks(InboundOrder order,
@@ -670,16 +749,20 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         }
 
         return stocks.stream()
-                .map(stock -> new InventoryStockDTO(
-                        stock.getMaterialCode(),
-                        stock.getMaterialName(),
-                        stock.getSupplier(),
-                        stock.getOnHandQty(),
-                        stock.getLastInboundDocNo(),
-                        stock.getLastInboundAt(),
-                        stock.getTransferStatus(),
-                        stock.getWarehouseArea()
-                ))
+                .map(stock -> {
+                    int sealedQty = calculateSealedQtyByMaterial(stock.getMaterialCode(), stock.getSupplier());
+                    int availableQty = Math.max(safeInt(stock.getOnHandQty()) - sealedQty, 0);
+                    return new InventoryStockDTO(
+                            stock.getMaterialCode(),
+                            stock.getMaterialName(),
+                            stock.getSupplier(),
+                            availableQty,
+                            stock.getLastInboundDocNo(),
+                            stock.getLastInboundAt(),
+                            stock.getTransferStatus(),
+                            stock.getWarehouseArea()
+                    );
+                })
                 .collect(Collectors.toList());
     }
 
@@ -725,7 +808,10 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 label.getLabelStatus(),
                 label.getPrintedAt(),
                 label.getReceivedAt(),
-                label.getReceivedBy()
+                label.getReceivedBy(),
+                label.getSealed(),
+                label.getSealedAt(),
+                label.getSealedBy()
         );
     }
 

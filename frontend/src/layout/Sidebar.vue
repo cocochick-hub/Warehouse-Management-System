@@ -112,9 +112,9 @@
         <span>高低储预警</span>
       </el-menu-item>
 
-      <el-menu-item index="/ai/chat">
-        <el-icon><ChatDotRound /></el-icon>
-        <span>AI 助手</span>
+      <el-menu-item index="/seal">
+        <el-icon><Lock /></el-icon>
+        <span>封存管理</span>
       </el-menu-item>
     </el-menu>
   </div>

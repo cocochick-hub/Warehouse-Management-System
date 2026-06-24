@@ -151,21 +151,7 @@ CREATE TABLE IF NOT EXISTS inventory_stock (
     UNIQUE (material_code, supplier)
 );
 
--- 7. 入库演示数据：两笔已完成入库 (为出库FIFO测试准备库存)
-INSERT INTO inbound_order (id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, remark, created_by) VALUES
-(1, 'IN20240601001', '宁波电子模组', '已完成', 2, 80, 80, '第一批入库-已完成', 'operator'),
-(2, 'IN20240601002', '宁波电子模组', '已完成', 2, 70, 70, '第二批入库-已完成（用于FIFO验证）', 'operator');
 
-INSERT INTO inbound_order_detail (id, inbound_order_id, doc_no, line_no, supplier_code, supplier_name, material_code, material_name, planned_qty, actual_qty, warehouse_area, created_by, updated_by) VALUES
-(1, 1, 'IN20240601001', 1, 'SUP-003', '宁波电子模组', 'MAT-ELE-001', '控制器模块', 50, 50, '默认库区', 'operator', 'operator'),
-(2, 1, 'IN20240601001', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 30, 30, '默认库区', 'operator', 'operator'),
-(3, 2, 'IN20240601002', 1, 'SUP-003', '宁波电子模组', 'MAT-ELE-001', '控制器模块', 40, 40, '默认库区', 'operator', 'operator'),
-(4, 2, 'IN20240601002', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 30, 30, '默认库区', 'operator', 'operator');
-
--- 库存初始化：两批入库后，MAT-ELE-001共90件(50+40), MAT-ELE-002共60件(30+30)
-INSERT INTO inventory_stock (id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, created_by) VALUES
-(1, 'MAT-ELE-001', '控制器模块', '宁波电子模组', 90, 'IN20240601002', '2026-06-10 10:00:00', 'system'),
-(2, 'MAT-ELE-002', '线束组件', '宁波电子模组', 60, 'IN20240601002', '2026-06-10 10:00:00', 'system');
 
 -- 8. 出库单表
 CREATE TABLE IF NOT EXISTS outbound_order (
@@ -263,6 +249,9 @@ CREATE TABLE inbound_kanban_label (
     printed_at              DATETIME     DEFAULT NULL COMMENT '最近打印时间',
     received_at             DATETIME     DEFAULT NULL COMMENT '扫码入库时间',
     received_by             VARCHAR(50)  DEFAULT NULL COMMENT '扫码入库人',
+    sealed                  TINYINT      DEFAULT 0 COMMENT '是否封存：0-否 1-是',
+    sealed_at               DATETIME     DEFAULT NULL COMMENT '封存时间',
+    sealed_by               VARCHAR(50)  DEFAULT NULL COMMENT '封存人',
     created_by              VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
     updated_by              VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
     created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -293,26 +282,7 @@ CREATE TABLE inventory_stock (
     KEY idx_inventory_stock_last_inbound_at (last_inbound_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='最小库存快照表';
 
--- 5. 入库演示数据
-INSERT INTO inbound_order (
-    id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, transfer_status, remark, created_by, updated_by
-) VALUES
-    (1, 'IN20240601001', '多供应商', '未入库', 2, 180, 0, '不转包', '演示未入库单据', 'operator', 'operator'),
-    (2, 'IN20240601002', '长春一汽配套', '部分完成', 2, 180, 70, '转包', '演示部分完成单据', 'operator', 'operator');
 
-INSERT INTO inbound_order_detail (
-    id, inbound_order_id, doc_no, line_no, supplier_code, supplier_name, material_code, material_name, package_model, packaging_capacity, planned_qty, actual_qty, package_count, warehouse_area, transfer_status, remark, created_by, updated_by
-) VALUES
-    (1, 1, 'IN20240601001', 1, 'SUP-001', '上海汽车零部件', 'MAT-ENG-001', '发动机支架', 'BX-ENG-20', 20, 100, 0, 5, '默认库区', '不转包', '待入库明细', 'operator', 'operator'),
-    (2, 1, 'IN20240601001', 2, 'SUP-002', '苏州精密器具', 'MAT-TOOL-002', '定位销', 'BOX-PIN-100', 100, 80, 0, 1, '默认库区', '不转包', '待入库明细', 'operator', 'operator'),
-    (3, 2, 'IN20240601002', 1, 'SUP-003', '宁波电子模组', 'MAT-ELE-001', '控制器模块', 'BOX-ELE-8', 8, 60, 30, 8, '默认库区', '不转包', '已部分入库', 'operator', 'operator'),
-    (4, 2, 'IN20240601002', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 'BOX-HAR-15', 15, 120, 40, 8, '默认库区', '不转包', '已部分入库', 'operator', 'operator');
-
-INSERT INTO inventory_stock (
-    id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, transfer_status, warehouse_area, created_by, updated_by
-) VALUES
-    (1, 'MAT-ELE-001', '控制器模块', '宁波电子模组', 30, 'IN20240601002', '2026-06-07 10:00:00', '转包', '默认库区', 'system', 'system'),
-    (2, 'MAT-ELE-002', '线束组件', '宁波电子模组', 40, 'IN20240601002', '2026-06-07 10:00:00', '转包', '默认库区', 'system', 'system');
 
 -- ============================================================================
 -- 6. 出库单表
@@ -383,37 +353,10 @@ CREATE TABLE IF NOT EXISTS outbound_history (
     FOREIGN KEY (outbound_detail_id) REFERENCES outbound_order_detail (id)
 );
 
--- 7. 出库单演示数据
-INSERT INTO outbound_order (doc_no, supplier, status, created_by) VALUES
-('OUT20240601001', '广州本田', '待出库', 'operator'),
-('OUT20240601002', '武汉东风', '待出库', 'operator')
-ON DUPLICATE KEY UPDATE doc_no = VALUES(doc_no);
+
 
 -- ============================================================================
--- 8. AI 预警记录表
--- ============================================================================
-DROP TABLE IF EXISTS ai_alert;
-CREATE TABLE ai_alert (
-    id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    material_code       VARCHAR(50)  NOT NULL COMMENT '物料号',
-    material_name       VARCHAR(100) NOT NULL COMMENT '物料名称',
-    alert_type          VARCHAR(20)  NOT NULL COMMENT '预警类型: SHORTAGE(缺货) / DEAD_STOCK(呆滞)',
-    risk_level          VARCHAR(10)  NOT NULL COMMENT '风险等级: HIGH / MEDIUM / LOW',
-    current_stock       INT          NOT NULL COMMENT '当前库存',
-    daily_consumption   DECIMAL(10,2) DEFAULT NULL COMMENT '日均消耗量',
-    estimated_days      INT          DEFAULT NULL COMMENT '预估可支撑天数',
-    idle_days           INT          DEFAULT NULL COMMENT '呆滞天数',
-    suggestion          TEXT         DEFAULT NULL COMMENT 'AI建议文案',
-    analysis_json       TEXT         DEFAULT NULL COMMENT '完整分析JSON',
-    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
-    KEY idx_ai_alert_type (alert_type),
-    KEY idx_ai_alert_risk (risk_level),
-    KEY idx_ai_alert_material (material_code),
-    KEY idx_ai_alert_created (created_at)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI预警记录表';
-
--- ============================================================================
--- 9. 库区管理表
+-- 10. 库区管理表
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS warehouse_area (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
@@ -436,7 +379,7 @@ INSERT INTO warehouse_area (area_code, area_name, sort_order, description) VALUE
 ON DUPLICATE KEY UPDATE area_name = VALUES(area_name);
 
 -- ============================================================================
--- 10. 退库功能：出库历史增加状态字段
+-- 11. 退库功能：出库历史增加状态字段
 -- ============================================================================
 ALTER TABLE outbound_history
 ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT '已出库'
@@ -445,3 +388,18 @@ COMMENT '状态：已出库/已退库';
 ALTER TABLE outbound_order
 MODIFY COLUMN status VARCHAR(20) NOT NULL DEFAULT '待出库'
 COMMENT '状态：待出库/部分完成/已完成/已退库';
+
+-- ============================================================================
+-- 12. 封存功能：看板增加封存字段
+-- ============================================================================
+ALTER TABLE inbound_kanban_label
+ADD COLUMN sealed TINYINT DEFAULT 0 COMMENT '是否封存：0-否 1-是'
+AFTER received_by;
+
+ALTER TABLE inbound_kanban_label
+ADD COLUMN sealed_at DATETIME DEFAULT NULL COMMENT '封存时间'
+AFTER sealed;
+
+ALTER TABLE inbound_kanban_label
+ADD COLUMN sealed_by VARCHAR(50) DEFAULT NULL COMMENT '封存人'
+AFTER sealed_at;

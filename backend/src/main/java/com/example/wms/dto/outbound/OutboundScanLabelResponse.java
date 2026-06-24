@@ -25,4 +25,6 @@ public class OutboundScanLabelResponse {
     private String fifoMessage;
     private String earliestDocNo;
     private Integer availableQty;
+    private Boolean sealed;
+    private String sealedMessage;
 }

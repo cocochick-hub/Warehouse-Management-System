@@ -267,6 +267,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             fifoMessage = "当前出库的库存并非最早入库，是否要继续出库？";
         }
 
+        boolean sealed = Boolean.TRUE.equals(label.getSealed());
+        String sealedMessage = sealed ? "该看板已封存，无法出库" : null;
+
         return new OutboundScanLabelResponse(
                 label.getId(),
                 label.getKanbanNo(),
@@ -283,7 +286,9 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 fifoWarning,
                 fifoMessage,
                 earliestDocNo,
-                availableQty
+                availableQty,
+                sealed,
+                sealedMessage
         );
     }
 
@@ -294,9 +299,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         if (!LABEL_STATUS_RECEIVED.equals(label.getLabelStatus())) {
             throw new IllegalStateException("该看板尚未完成入库，无法出库");
         }
-
-        if (request.getOutboundOrderId() == null) {
-            throw new IllegalArgumentException("出库单ID不能为空");
+        if (Boolean.TRUE.equals(label.getSealed())) {
+            throw new IllegalStateException("该看板已被封存，无法出库，请先解封");
         }
 
         OutboundOrder order;
@@ -582,13 +586,14 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             int consumedQty = consumed.stream()
                     .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
                     .mapToInt(h -> safeInt(h.getIssueQty())).sum();
-            int availableQty = safeInt(id.getActualQty()) - consumedQty;
+            int sealedQty = calculateSealedQty(id.getId());
+            int availableQty = safeInt(id.getActualQty()) - consumedQty - sealedQty;
             totalAvailable += Math.max(availableQty, 0);
         }
 
         if (totalAvailable < issueQty) {
             throw new IllegalStateException(
-                    "物料 " + detail.getMaterialCode() + " 库存不足，需要 " + issueQty
+                    "物料 " + detail.getMaterialCode() + " 库存不足（含已封存量），需要 " + issueQty
                             + "，可用 " + totalAvailable);
         }
 
@@ -603,7 +608,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             int consumedQty = consumed.stream()
                     .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
                     .mapToInt(h -> safeInt(h.getIssueQty())).sum();
-            int availableQty = safeInt(id.getActualQty()) - consumedQty;
+            int sealedQty = calculateSealedQty(id.getId());
+            int availableQty = safeInt(id.getActualQty()) - consumedQty - sealedQty;
             if (availableQty <= 0) {
                 continue;
             }
@@ -746,16 +752,20 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         }
 
         return stocks.stream()
-                .map(stock -> new InventoryStockDTO(
-                        stock.getMaterialCode(),
-                        stock.getMaterialName(),
-                        stock.getSupplier(),
-                        stock.getOnHandQty(),
-                        stock.getLastInboundDocNo(),
-                        stock.getLastInboundAt(),
-                        null,
-                        null
-                ))
+                .map(stock -> {
+                    int sealedQty = calculateSealedQtyByMaterial(stock.getMaterialCode(), stock.getSupplier());
+                    int availableQty = Math.max(safeInt(stock.getOnHandQty()) - sealedQty, 0);
+                    return new InventoryStockDTO(
+                            stock.getMaterialCode(),
+                            stock.getMaterialName(),
+                            stock.getSupplier(),
+                            availableQty,
+                            stock.getLastInboundDocNo(),
+                            stock.getLastInboundAt(),
+                            null,
+                            null
+                    );
+                })
                 .collect(Collectors.toList());
     }
 
@@ -777,6 +787,25 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
     private int safeInt(Integer value) {
         return value == null ? 0 : value;
+    }
+
+    /** 计算指定入库明细关联的已封存看板数量总和 */
+    private int calculateSealedQty(Long inboundDetailId) {
+        List<InboundKanbanLabel> labels = inboundKanbanLabelRepository
+                .findByInboundOrderDetailIdIn(java.util.Collections.singleton(inboundDetailId));
+        return labels.stream()
+                .filter(label -> Boolean.TRUE.equals(label.getSealed()))
+                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .sum();
+    }
+
+    /** 计算指定物料+供应商已封存的看板总数 */
+    private int calculateSealedQtyByMaterial(String materialCode, String supplierName) {
+        return inboundKanbanLabelRepository
+                .findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+                .stream()
+                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .sum();
     }
 
     private String trimToNull(String value) {

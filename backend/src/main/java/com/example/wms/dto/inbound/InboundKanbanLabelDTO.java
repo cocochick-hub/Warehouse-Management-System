@@ -31,4 +31,7 @@ public class InboundKanbanLabelDTO {
     private LocalDateTime printedAt;
     private LocalDateTime receivedAt;
     private String receivedBy;
+    private Boolean sealed;
+    private LocalDateTime sealedAt;
+    private String sealedBy;
 }

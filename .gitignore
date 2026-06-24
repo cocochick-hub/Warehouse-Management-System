@@ -33,6 +33,3 @@ logs/
 
 # Local scripts
 *.bat
-
-# Spring Boot local profile
-application-local.yml

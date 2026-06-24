@@ -120,9 +120,6 @@
       </el-col>
     </el-row>
 
-    <!-- AI 预警卡片 -->
-    <AiAlertCards />
-
     <el-row :gutter="16" style="margin-top: 16px;">
       <el-col :span="24">
         <el-card shadow="hover">
@@ -155,7 +152,6 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { getDashboardDataApi } from '@/api/dashboard'
-import AiAlertCards from '@/components/ai/AiAlertCards.vue'
 
 const router = useRouter()
 const todoList = ref([])

@@ -16,6 +16,7 @@ import com.example.wms.service.BasicDataService;
 import org.springframework.stereotype.Service;
 
 import javax.persistence.EntityNotFoundException;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -111,6 +112,11 @@ public class BasicDataServiceImpl implements BasicDataService {
         entity.setAreaName(dto.getAreaName());
         entity.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
         entity.setDescription(dto.getDescription());
+        LocalDateTime now = LocalDateTime.now();
+        entity.setCreatedBy("system");
+        entity.setUpdatedBy("system");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
         WarehouseArea saved = warehouseAreaRepository.save(entity);
         return toDTO(saved);
     }

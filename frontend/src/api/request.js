@@ -58,8 +58,11 @@ request.interceptors.response.use(
         case 403:
           ElMessage.error('权限不足，无法访问')
           break
+        case 400:
+          ElMessage.error(data?.message || '请求参数错误')
+          break
         case 404:
-          ElMessage.error('请求的资源不存在')
+          ElMessage.error(data?.message || '请求的资源不存在')
           break
         case 500:
           ElMessage.error(data?.message || '服务器内部错误')

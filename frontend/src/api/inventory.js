@@ -7,3 +7,11 @@ export function getInventoryStocksApi(params) {
     params
   })
 }
+
+export function getInventoryLabelsApi(params) {
+  return request({
+    url: '/inventory/stocks/labels',
+    method: 'get',
+    params
+  })
+}

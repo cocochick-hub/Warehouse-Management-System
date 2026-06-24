@@ -15,6 +15,4 @@ public interface OutboundHistoryRepository extends JpaRepository<OutboundHistory
     List<OutboundHistory> findBySourceDetailId(Long sourceDetailId);
 
     List<OutboundHistory> findByOutboundDetailId(Long outboundDetailId);
-
-    List<OutboundHistory> findByCreatedAtAfter(java.time.LocalDateTime dateTime);
 }

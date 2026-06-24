@@ -150,21 +150,7 @@ CREATE TABLE IF NOT EXISTS inventory_stock (
     UNIQUE (material_code, supplier)
 );
 
--- 7. 入库演示数据：两笔已完成入库 (为出库FIFO测试准备库存)
-INSERT INTO inbound_order (id, doc_no, supplier, status, item_count, planned_total_qty, actual_total_qty, remark, created_by) VALUES
-(1, 'IN20240601001', '宁波电子模组', '已完成', 2, 80, 80, '第一批入库-已完成', 'operator'),
-(2, 'IN20240601002', '宁波电子模组', '已完成', 2, 70, 70, '第二批入库-已完成（用于FIFO验证）', 'operator');
 
-INSERT INTO inbound_order_detail (id, inbound_order_id, doc_no, line_no, supplier_code, supplier_name, material_code, material_name, planned_qty, actual_qty, warehouse_area, created_by, updated_by) VALUES
-(1, 1, 'IN20240601001', 1, 'SUP-003', '宁波电子模组', 'MAT-ELE-001', '控制器模块', 50, 50, '默认库区', 'operator', 'operator'),
-(2, 1, 'IN20240601001', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 30, 30, '默认库区', 'operator', 'operator'),
-(3, 2, 'IN20240601002', 1, 'SUP-003', '宁波电子模组', 'MAT-ELE-001', '控制器模块', 40, 40, '默认库区', 'operator', 'operator'),
-(4, 2, 'IN20240601002', 2, 'SUP-003', '宁波电子模组', 'MAT-ELE-002', '线束组件', 30, 30, '默认库区', 'operator', 'operator');
-
--- 库存初始化：两批入库后，MAT-ELE-001共90件(50+40), MAT-ELE-002共60件(30+30)
-INSERT INTO inventory_stock (id, material_code, material_name, supplier, on_hand_qty, last_inbound_doc_no, last_inbound_at, created_by) VALUES
-(1, 'MAT-ELE-001', '控制器模块', '宁波电子模组', 90, 'IN20240601002', '2026-06-10 10:00:00', 'system'),
-(2, 'MAT-ELE-002', '线束组件', '宁波电子模组', 60, 'IN20240601002', '2026-06-10 10:00:00', 'system');
 
 -- 8. 出库单表
 CREATE TABLE IF NOT EXISTS outbound_order (
@@ -245,6 +231,9 @@ CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     printed_at              TIMESTAMP    DEFAULT NULL,
     received_at             TIMESTAMP    DEFAULT NULL,
     received_by             VARCHAR(50)  DEFAULT NULL,
+    sealed                  BOOLEAN      DEFAULT FALSE,
+    sealed_at               TIMESTAMP    DEFAULT NULL,
+    sealed_by               VARCHAR(50)  DEFAULT NULL,
     created_by              VARCHAR(50)  DEFAULT 'system',
     updated_by              VARCHAR(50)  DEFAULT 'system',
     created_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,

@@ -18,4 +18,9 @@ public interface InboundKanbanLabelRepository extends JpaRepository<InboundKanba
     Optional<InboundKanbanLabel> findByKanbanNo(String kanbanNo);
 
     boolean existsByKanbanNo(String kanbanNo);
+
+    List<InboundKanbanLabel> findByMaterialCodeAndSupplierNameOrderByCreatedAtAsc(String materialCode, String supplierName);
+
+    /** 查询指定物料+供应商下所有已封存的看板标签 */
+    List<InboundKanbanLabel> findByMaterialCodeAndSupplierNameAndSealedTrue(String materialCode, String supplierName);
 }

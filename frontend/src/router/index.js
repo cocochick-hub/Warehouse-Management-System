@@ -153,10 +153,10 @@ const routes = [
         meta: { title: '高低储预警' }
       },
       {
-        path: 'ai/chat',
-        name: 'AiChat',
-        component: () => import('@/views/ai/Chat.vue'),
-        meta: { title: 'AI 助手' }
+        path: 'seal',
+        name: 'SealManagement',
+        component: () => import('@/views/seal/SealManagement.vue'),
+        meta: { title: '封存管理' }
       }
     ]
   },
