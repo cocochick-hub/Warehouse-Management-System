@@ -388,3 +388,14 @@ INSERT INTO outbound_order (doc_no, supplier, status, created_by) VALUES
 ('OUT20240601001', '广州本田', '待出库', 'operator'),
 ('OUT20240601002', '武汉东风', '待出库', 'operator')
 ON DUPLICATE KEY UPDATE doc_no = VALUES(doc_no);
+
+-- ============================================================================
+-- 11. 退库功能：出库历史增加状态字段
+-- ============================================================================
+ALTER TABLE outbound_history
+ADD COLUMN status VARCHAR(20) NOT NULL DEFAULT '已出库'
+COMMENT '状态：已出库/已退库';
+
+ALTER TABLE outbound_order
+MODIFY COLUMN status VARCHAR(20) NOT NULL DEFAULT '待出库'
+COMMENT '状态：待出库/部分完成/已完成/已退库';

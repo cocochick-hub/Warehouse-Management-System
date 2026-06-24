@@ -49,6 +49,9 @@ public class OutboundHistory {
     @Column(name = "issued_by", length = 50)
     private String issuedBy;
 
+    @Column(length = 20)
+    private String status;
+
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
 }
