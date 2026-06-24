@@ -174,10 +174,15 @@ public class AiChatController {
     public ApiResult<Map<String, Object>> getLatestAlerts(
             @RequestParam(required = false) String alertType) {
         List<AiAlert> alerts;
-        if (alertType != null && !alertType.isEmpty()) {
-            alerts = alertRepo.findByAlertTypeOrderByCreatedAtDesc(alertType);
-        } else {
-            alerts = alertRepo.findAllByOrderByCreatedAtDesc();
+        try {
+            if (alertType != null && !alertType.isEmpty()) {
+                alerts = alertRepo.findByAlertTypeOrderByCreatedAtDesc(alertType);
+            } else {
+                alerts = alertRepo.findAllByOrderByCreatedAtDesc();
+            }
+        } catch (Exception e) {
+            log.warn("查询AI预警记录失败（可能数据表尚未初始化）: {}", e.getMessage());
+            alerts = Collections.emptyList();
         }
 
         // 按类型分组

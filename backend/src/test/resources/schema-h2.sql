@@ -143,11 +143,13 @@ CREATE TABLE IF NOT EXISTS inventory_stock (
     on_hand_qty         INT          NOT NULL DEFAULT 0,
     last_inbound_doc_no VARCHAR(50)  DEFAULT NULL,
     last_inbound_at     TIMESTAMP    DEFAULT NULL,
+    transfer_status     VARCHAR(20)  DEFAULT '不转包',
+    warehouse_area      VARCHAR(100) DEFAULT '默认库区',
     created_by          VARCHAR(50)  DEFAULT 'system',
     updated_by          VARCHAR(50)  DEFAULT 'system',
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (material_code, supplier)
+    UNIQUE (material_code, supplier, warehouse_area)
 );
 
 

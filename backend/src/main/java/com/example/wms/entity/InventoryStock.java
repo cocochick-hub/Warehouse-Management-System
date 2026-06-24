@@ -15,6 +15,10 @@ import java.time.LocalDateTime;
                 @UniqueConstraint(
                         name = "uk_inventory_stock_material_supplier",
                         columnNames = {"material_code", "supplier"}
+                ),
+                @UniqueConstraint(
+                        name = "uk_inventory_stock_material_supplier_area",
+                        columnNames = {"material_code", "supplier", "warehouse_area"}
                 )
         }
 )

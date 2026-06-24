@@ -144,12 +144,16 @@ CREATE TABLE IF NOT EXISTS inventory_stock (
     on_hand_qty         INT          NOT NULL DEFAULT 0,
     last_inbound_doc_no VARCHAR(50)  DEFAULT NULL,
     last_inbound_at     TIMESTAMP    DEFAULT NULL,
+    transfer_status     VARCHAR(20)  DEFAULT '不转包',
+    warehouse_area      VARCHAR(100) DEFAULT '默认库区',
     created_by          VARCHAR(50)  DEFAULT 'system',
     updated_by          VARCHAR(50)  DEFAULT 'system',
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE (material_code, supplier)
+    UNIQUE (material_code, supplier, warehouse_area)
 );
+
+-- 演示数据已清空，由用户自行添加
 
 
 
@@ -278,7 +282,7 @@ CREATE TABLE inventory_stock (
     updated_by          VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
     created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
     updated_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
-    UNIQUE KEY uk_inventory_stock_material_supplier (material_code, supplier),
+    UNIQUE KEY uk_inventory_stock_material_supplier (material_code, supplier, warehouse_area),
     KEY idx_inventory_stock_last_inbound_at (last_inbound_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='最小库存快照表';
 
@@ -403,3 +407,31 @@ AFTER sealed;
 ALTER TABLE inbound_kanban_label
 ADD COLUMN sealed_by VARCHAR(50) DEFAULT NULL COMMENT '封存人'
 AFTER sealed_at;
+
+-- ============================================================================
+-- 11. AI 预警记录表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS ai_alert (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    material_code   VARCHAR(50)  NOT NULL COMMENT '物料号',
+    material_name   VARCHAR(100) NOT NULL COMMENT '物料名称',
+    alert_type      VARCHAR(20)  NOT NULL COMMENT '预警类型：SHORTAGE(缺货)/DEAD_STOCK(呆滞)',
+    risk_level      VARCHAR(10)  NOT NULL COMMENT '风险等级：HIGH/MEDIUM/LOW',
+    current_stock   INT          NOT NULL COMMENT '当前库存',
+    daily_consumption DECIMAL(10,2) DEFAULT NULL COMMENT '日均消耗量',
+    estimated_days  INT          DEFAULT NULL COMMENT '预估可支撑天数',
+    idle_days       INT          DEFAULT NULL COMMENT '呆滞天数',
+    suggestion      TEXT         DEFAULT NULL COMMENT 'AI建议文案',
+    analysis_json   TEXT         DEFAULT NULL COMMENT '完整分析数据JSON',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_ai_alert_type (alert_type),
+    KEY idx_ai_alert_risk (risk_level),
+    KEY idx_ai_alert_material (material_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='AI预警记录表';
+
+-- ============================================================================
+-- 12. 库存表唯一键迁移：增加库区维度
+-- ============================================================================
+-- 删除旧的 (material_code, supplier) 唯一键，替换为 (material_code, supplier, warehouse_area)
+ALTER TABLE inventory_stock DROP INDEX uk_inventory_stock_material_supplier;
+ALTER TABLE inventory_stock ADD UNIQUE KEY uk_inventory_stock_material_supplier_area (material_code, supplier, warehouse_area);

@@ -380,17 +380,20 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         matchingDetail.setUpdatedAt(now);
         outboundOrderDetailRepository.save(matchingDetail);
 
+        // 按看板库区定位库存行扣减（扫码出库知道物料具体在哪个库区）
+        String stockArea = defaultIfBlank(label.getWarehouseArea(), "默认库区");
         InventoryStock stock = inventoryStockRepository
-                .findByMaterialCodeAndSupplier(matchingDetail.getMaterialCode(), matchingDetail.getSupplierName())
+                .findByMaterialCodeAndSupplierAndWarehouseArea(matchingDetail.getMaterialCode(), matchingDetail.getSupplierName(), stockArea)
                 .orElse(null);
         if (stock == null) {
             throw new IllegalStateException(
-                    "物料 " + matchingDetail.getMaterialCode() + "（需求方 " + matchingDetail.getSupplierName() + "）不存在库存记录，请先入库");
+                    "物料 " + matchingDetail.getMaterialCode() + "（需求方 " + matchingDetail.getSupplierName()
+                    + "）在库区 " + stockArea + " 不存在库存记录，请先入库");
         }
         int onHand = safeInt(stock.getOnHandQty());
         if (onHand < issueQty) {
             throw new IllegalStateException(
-                    "物料 " + matchingDetail.getMaterialCode() + " 当前库存 " + onHand + "，不足 " + issueQty);
+                    "物料 " + matchingDetail.getMaterialCode() + "（库区 " + stockArea + "）当前库存 " + onHand + "，不足 " + issueQty);
         }
         stock.setOnHandQty(onHand - issueQty);
         stock.setUpdatedBy(currentOperator);
@@ -635,22 +638,25 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             remaining -= allocateQty;
         }
 
-        InventoryStock stock = inventoryStockRepository
-                .findByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName())
-                .orElse(null);
-        if (stock == null) {
+        // 跨库区累加校验库存总量，再逐库区扣减
+        List<InventoryStock> areaStocks = inventoryStockRepository
+                .findAllByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName());
+        int totalOnHand = areaStocks.stream().mapToInt(s -> safeInt(s.getOnHandQty())).sum();
+        if (totalOnHand < issueQty) {
             throw new IllegalStateException(
-                    "物料 " + detail.getMaterialCode() + "（需求方 " + detail.getSupplierName() + "）不存在库存记录，请先入库");
+                    "物料 " + detail.getMaterialCode() + "（需求方 " + detail.getSupplierName()
+                    + "）当前总库存 " + totalOnHand + "，不足 " + issueQty);
         }
-        int onHand = safeInt(stock.getOnHandQty());
-        if (onHand < issueQty) {
-            throw new IllegalStateException(
-                    "物料 " + detail.getMaterialCode() + " 当前库存 " + onHand + "，不足 " + issueQty);
+        int toDeduct = issueQty;
+        for (InventoryStock areaStock : areaStocks) {
+            if (toDeduct <= 0) break;
+            int deduct = Math.min(safeInt(areaStock.getOnHandQty()), toDeduct);
+            areaStock.setOnHandQty(safeInt(areaStock.getOnHandQty()) - deduct);
+            areaStock.setUpdatedBy(operator);
+            areaStock.setUpdatedAt(now);
+            inventoryStockRepository.save(areaStock);
+            toDeduct -= deduct;
         }
-        stock.setOnHandQty(onHand - issueQty);
-        stock.setUpdatedBy(operator);
-        stock.setUpdatedAt(now);
-        inventoryStockRepository.save(stock);
 
         return records;
     }
@@ -740,6 +746,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             return Collections.emptyList();
         }
 
+        // 按物料号+供应商去重后，查出所有库区的库存行
         List<InventoryStock> stocks = new ArrayList<>();
         Set<String> seenKeys = new HashSet<>();
         for (OutboundOrderDetail detail : details) {
@@ -747,8 +754,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             if (!seenKeys.add(key)) {
                 continue;
             }
-            inventoryStockRepository.findByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName())
-                    .ifPresent(stocks::add);
+            stocks.addAll(inventoryStockRepository.findAllByMaterialCodeAndSupplier(
+                    detail.getMaterialCode(), detail.getSupplierName()));
         }
 
         return stocks.stream()
@@ -762,8 +769,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                             availableQty,
                             stock.getLastInboundDocNo(),
                             stock.getLastInboundAt(),
-                            null,
-                            null
+                            stock.getTransferStatus(),
+                            stock.getWarehouseArea()
                     );
                 })
                 .collect(Collectors.toList());
@@ -905,9 +912,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
         int returnQty = safeInt(latestHistory.getIssueQty());
 
-        // 1. 库存回增
+        // 1. 库存回增（按看板库区定位）
+        String returnArea = defaultIfBlank(label.getWarehouseArea(), "默认库区");
         InventoryStock stock = inventoryStockRepository
-                .findByMaterialCodeAndSupplier(label.getMaterialCode(), label.getSupplierName())
+                .findByMaterialCodeAndSupplierAndWarehouseArea(label.getMaterialCode(), label.getSupplierName(), returnArea)
                 .orElse(null);
 
         if (stock == null) {

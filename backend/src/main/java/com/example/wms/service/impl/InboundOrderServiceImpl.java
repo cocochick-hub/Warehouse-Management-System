@@ -610,8 +610,10 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 continue;
             }
 
+            // 按物料号+供应商+库区定位库存行，确保不同库区各自累加
+            String warehouseArea = defaultIfBlank(detail.getWarehouseArea(), DEFAULT_WAREHOUSE_AREA);
             InventoryStock stock = inventoryStockRepository
-                    .findByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName())
+                    .findByMaterialCodeAndSupplierAndWarehouseArea(detail.getMaterialCode(), detail.getSupplierName(), warehouseArea)
                     .orElseGet(() -> createInventoryStock(order, detail, operator, now));
 
             stock.setMaterialName(detail.getMaterialName());
@@ -619,7 +621,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             stock.setLastInboundDocNo(order.getDocNo());
             stock.setLastInboundAt(now);
             stock.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), DEFAULT_TRANSFER_STATUS));
-            stock.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), DEFAULT_WAREHOUSE_AREA));
+            stock.setWarehouseArea(warehouseArea);
             stock.setUpdatedBy(operator);
             stock.setUpdatedAt(now);
             stocksToSave.add(stock);
@@ -737,6 +739,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             return Collections.emptyList();
         }
 
+        // 按物料号+供应商去重后，查出所有库区的库存行
         List<InventoryStock> stocks = new ArrayList<>();
         Set<String> seenKeys = new HashSet<>();
         for (InboundOrderDetail detail : details) {
@@ -744,8 +747,8 @@ public class InboundOrderServiceImpl implements InboundOrderService {
             if (!seenKeys.add(key)) {
                 continue;
             }
-            inventoryStockRepository.findByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName())
-                    .ifPresent(stocks::add);
+            stocks.addAll(inventoryStockRepository.findAllByMaterialCodeAndSupplier(
+                    detail.getMaterialCode(), detail.getSupplierName()));
         }
 
         return stocks.stream()
