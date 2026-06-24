@@ -217,6 +217,7 @@ CREATE TABLE IF NOT EXISTS outbound_history (
     source_detail_id    BIGINT       DEFAULT NULL,
     warehouse_area      VARCHAR(100) DEFAULT '默认库区',
     issued_by           VARCHAR(50)  DEFAULT 'system',
+    status              VARCHAR(20)  NOT NULL DEFAULT '已出库',
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id)
 );
