@@ -787,7 +787,14 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
     @Override
     public OutboundReturnLabelResponse getReturnLabel(String kanbanNo) {
-        InboundKanbanLabel label = findKanbanLabel(kanbanNo);
+        InboundKanbanLabel label;
+        try {
+            label = findKanbanLabel(kanbanNo);
+        } catch (EntityNotFoundException e) {
+            return new OutboundReturnLabelResponse(
+                    kanbanNo, null, null, null, null, null, null, null,
+                    false, "看板号不存在");
+        }
 
         // 查找该看板对应的入库明细
         InboundOrderDetail inboundDetail = inboundOrderDetailRepository
@@ -875,6 +882,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             stock.setTransferStatus("不转包");
             stock.setCreatedBy(normalizeOperator(operator));
             stock.setUpdatedBy(normalizeOperator(operator));
+            stock.setCreatedAt(LocalDateTime.now());
+            stock.setUpdatedAt(LocalDateTime.now());
         } else {
             stock.setOnHandQty(safeInt(stock.getOnHandQty()) + returnQty);
             stock.setUpdatedBy(normalizeOperator(operator));
@@ -894,7 +903,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             boolean allReturned = true;
             for (OutboundOrderDetail detail : orderDetails) {
                 List<OutboundHistory> detailHistories = outboundHistoryRepository
-                        .findBySourceDetailId(detail.getId());
+                        .findByOutboundDetailId(detail.getId());
                 boolean thisLineAllReturned = detailHistories.stream()
                         .allMatch(h -> STATUS_RETURNED.equals(h.getStatus()));
                 if (!thisLineAllReturned) {
@@ -904,6 +913,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             }
             if (allReturned) {
                 order.setStatus(STATUS_RETURNED);
+                order.setUpdatedBy(normalizeOperator(operator));
+                order.setUpdatedAt(LocalDateTime.now());
                 outboundOrderRepository.save(order);
             }
         }

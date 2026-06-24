@@ -13,4 +13,6 @@ public interface OutboundHistoryRepository extends JpaRepository<OutboundHistory
     List<OutboundHistory> findByDocNoOrderByCreatedAtDesc(String docNo);
 
     List<OutboundHistory> findBySourceDetailId(Long sourceDetailId);
+
+    List<OutboundHistory> findByOutboundDetailId(Long outboundDetailId);
 }
