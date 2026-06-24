@@ -17,6 +17,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { CellGroup, Cell } from 'vant'
 
 const props = defineProps({
   materialCode: { type: String, default: '' },

@@ -23,6 +23,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { NavBar, Field, CellGroup, Button } from 'vant'
 import { useUserStore } from '@/store/user'
 import { updateBaseUrl } from '@/api/request'
 

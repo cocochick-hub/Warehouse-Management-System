@@ -23,6 +23,7 @@
 
 <script setup>
 import { ref, onMounted } from 'vue'
+import { NavBar, Search, List, Cell, Empty } from 'vant'
 import { getOutboundOrders } from '@/api/outbound'
 
 const orders = ref([])

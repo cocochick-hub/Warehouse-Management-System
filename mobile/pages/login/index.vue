@@ -5,14 +5,13 @@
       <text class="login-subtitle">手机端</text>
     </view>
 
-    <van-form @submit="onLogin">
+    <van-form>
       <van-cell-group inset>
         <van-field
           v-model="form.username"
           name="username"
           label="用户名"
           placeholder="请输入用户名"
-          :rules="[{ required: true, message: '请输入用户名' }]"
         />
         <van-field
           v-model="form.password"
@@ -20,12 +19,11 @@
           label="密码"
           type="password"
           placeholder="请输入密码"
-          :rules="[{ required: true, message: '请输入密码' }]"
         />
       </van-cell-group>
 
       <view style="margin: 16px">
-        <van-button round block type="primary" native-type="submit" :loading="loading">
+        <van-button round block type="primary" :loading="loading" @click="onLogin">
           登录
         </van-button>
       </view>
@@ -35,6 +33,7 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { Button, Form, Field, CellGroup } from 'vant'
 import { useUserStore } from '@/store/user'
 
 const userStore = useUserStore()
@@ -42,6 +41,7 @@ const loading = ref(false)
 const form = reactive({ username: '', password: '' })
 
 async function onLogin() {
+  if (!form.username || !form.password) return
   loading.value = true
   try {
     await userStore.login(form.username, form.password)

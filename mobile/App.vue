@@ -8,11 +8,10 @@ onLaunch(() => {
 })
 </script>
 
-<style lang="scss">
+<style>
 @import 'vant/lib/index.css';
 
 page {
   background-color: #f7f8fa;
-  font-family: -apple-system, BlinkMacSystemFont, 'Helvetica Neue', sans-serif;
 }
 </style>

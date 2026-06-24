@@ -13,6 +13,7 @@
 
 <script setup>
 import { computed } from 'vue'
+import { Dialog } from 'vant'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

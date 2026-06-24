@@ -1,4 +1,10 @@
 {
+  "easycom": {
+    "autoscan": true,
+    "custom": {
+      "^van-(.*)": "vant/es/van-$1/index.mjs"
+    }
+  },
   "pages": [
     {
       "path": "pages/login/index",

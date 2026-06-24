@@ -45,6 +45,7 @@
 
 <script setup>
 import { ref, computed, onMounted } from 'vue'
+import { NavBar, Button, Tag } from 'vant'
 import ScanInput from '@/components/ScanInput.vue'
 import MaterialCard from '@/components/MaterialCard.vue'
 import FifoAlert from '@/components/FifoAlert.vue'

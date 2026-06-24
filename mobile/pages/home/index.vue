@@ -25,6 +25,7 @@
 </template>
 
 <script setup>
+import { NavBar, Icon, Grid, GridItem } from 'vant'
 import { useUserStore } from '@/store/user'
 
 const userStore = useUserStore()

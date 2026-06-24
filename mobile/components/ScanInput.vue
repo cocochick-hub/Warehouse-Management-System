@@ -18,6 +18,7 @@
 
 <script setup>
 import { ref } from 'vue'
+import { Field, Button, Icon } from 'vant'
 
 const props = defineProps({
   placeholder: { type: String, default: '请输入或扫码看板号' }

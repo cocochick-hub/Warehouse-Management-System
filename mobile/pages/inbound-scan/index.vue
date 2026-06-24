@@ -36,6 +36,7 @@
 
 <script setup>
 import { ref, computed } from 'vue'
+import { NavBar, Button } from 'vant'
 import ScanInput from '@/components/ScanInput.vue'
 import MaterialCard from '@/components/MaterialCard.vue'
 import { getScanLabel, receiveByScan } from '@/api/inbound'
