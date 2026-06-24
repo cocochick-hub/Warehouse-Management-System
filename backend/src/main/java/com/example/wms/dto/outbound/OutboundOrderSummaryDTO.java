@@ -18,6 +18,7 @@ public class OutboundOrderSummaryDTO {
     private int itemCount;
     private int plannedTotalQty;
     private int actualTotalQty;
+    private String outboundType;
     private String remark;
     private String createdBy;
     private String updatedBy;

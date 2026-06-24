@@ -327,6 +327,7 @@ CREATE TABLE outbound_order (
     item_count      INT          NOT NULL DEFAULT 0    COMMENT '明细条数',
     planned_total_qty INT       NOT NULL DEFAULT 0    COMMENT '计划出库总数',
     actual_total_qty INT        NOT NULL DEFAULT 0    COMMENT '实际出库总数',
+    outbound_type   VARCHAR(20) NOT NULL DEFAULT '带单出库' COMMENT '出库方式(带单出库/不带单出库)',
     remark          VARCHAR(255) DEFAULT NULL          COMMENT '备注',
     created_by      VARCHAR(50)  DEFAULT 'system'     COMMENT '创建人',
     updated_by      VARCHAR(50)  DEFAULT 'system'     COMMENT '更新人',

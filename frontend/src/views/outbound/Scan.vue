@@ -44,8 +44,15 @@
         </el-descriptions>
 
         <el-form label-width="90px" class="issue-form">
-          <el-form-item label="出库单ID">
-            <el-input-number v-model="issueForm.outboundOrderId" :min="1" placeholder="请输入出库单ID" />
+          <el-form-item label="出库单号">
+            <el-select v-model="issueForm.docNo" filterable clearable placeholder="请选择出库单" style="width: 100%">
+              <el-option
+                v-for="order in pendingOrders"
+                :key="order.id"
+                :label="`${order.docNo} - ${order.supplier}`"
+                :value="order.docNo"
+              />
+            </el-select>
           </el-form-item>
           <el-form-item label="出库数量">
             <el-input-number
@@ -94,7 +101,7 @@
 import { computed, nextTick, onMounted, reactive, ref } from 'vue'
 import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
-import { getOutboundScanLabel, issueByScan } from '@/api/outbound'
+import { getOutboundScanLabel, issueByScan, listOrders } from '@/api/outbound'
 
 const scanInputRef = ref()
 const scanValue = ref('')
@@ -103,8 +110,10 @@ const submitting = ref(false)
 const currentLabel = ref(null)
 const fifoVisible = ref(false)
 
+const pendingOrders = ref([])
+
 const issueForm = reactive({
-  outboundOrderId: null,
+  docNo: '',
   issueQty: 1
 })
 
@@ -115,13 +124,14 @@ const labelStatusType = computed(() => {
 const canIssue = computed(() => {
   return (
     currentLabel.value?.labelStatus === '已入库' &&
-    issueForm.outboundOrderId > 0 &&
+    issueForm.docNo &&
     issueForm.issueQty > 0
   )
 })
 
 onMounted(() => {
   focusInput()
+  fetchPendingOrders()
 })
 
 async function handleQuery() {
@@ -137,7 +147,7 @@ async function handleQuery() {
     const queryValue = parseScanValue(value)
     const { data } = await getOutboundScanLabel(queryValue)
     currentLabel.value = data
-    issueForm.outboundOrderId = null
+    issueForm.docNo = ''
     issueForm.issueQty = data.labelQty || 1
 
     if (data.fifoWarning) {
@@ -158,13 +168,13 @@ async function handleIssue() {
     await issueByScan({
       kanbanNo: currentLabel.value.kanbanNo,
       issueQty: issueForm.issueQty,
-      outboundOrderId: issueForm.outboundOrderId,
+      outboundDocNo: issueForm.docNo,
       warehouseArea: currentLabel.value.warehouseArea || undefined
     })
     ElMessage.success('扫码出库成功')
     scanValue.value = ''
     currentLabel.value = null
-    issueForm.outboundOrderId = null
+    issueForm.docNo = ''
     issueForm.issueQty = 1
   } finally {
     submitting.value = false
@@ -172,10 +182,30 @@ async function handleIssue() {
   }
 }
 
+async function fetchPendingOrders() {
+  try {
+    const { data } = await listOrders({
+      status: '待出库',
+      size: 200
+    })
+    const pending = data.records || []
+
+    const { data: partialData } = await listOrders({
+      status: '部分完成',
+      size: 200
+    })
+    const partial = partialData.records || []
+
+    pendingOrders.value = [...pending, ...partial]
+  } catch {
+    pendingOrders.value = []
+  }
+}
+
 function handleClear() {
   scanValue.value = ''
   currentLabel.value = null
-  issueForm.outboundOrderId = null
+  issueForm.docNo = ''
   issueForm.issueQty = 1
   focusInput()
 }
@@ -188,7 +218,7 @@ function handleFifoCancel() {
   fifoVisible.value = false
   currentLabel.value = null
   scanValue.value = ''
-  issueForm.outboundOrderId = null
+  issueForm.docNo = ''
   issueForm.issueQty = 1
   focusInput()
 }

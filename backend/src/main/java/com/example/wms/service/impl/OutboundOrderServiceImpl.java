@@ -92,6 +92,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         order.setItemCount(request.getDetails().size());
         order.setPlannedTotalQty(sumPlannedQty(request.getDetails()));
         order.setActualTotalQty(0);
+        order.setOutboundType(defaultIfBlank(request.getOutboundType(), "带单出库"));
         order.setRemark(trimToNull(request.getRemark()));
         order.setCreatedBy(currentOperator);
         order.setUpdatedBy(currentOperator);
@@ -295,7 +296,15 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             throw new IllegalArgumentException("出库单ID不能为空");
         }
 
-        OutboundOrder order = findOrder(request.getOutboundOrderId());
+        OutboundOrder order;
+        if (request.getOutboundOrderId() != null) {
+            order = findOrder(request.getOutboundOrderId());
+        } else if (trimToNull(request.getOutboundDocNo()) != null) {
+            order = outboundOrderRepository.findByDocNo(request.getOutboundDocNo().trim())
+                    .orElseThrow(() -> new EntityNotFoundException("出库单不存在"));
+        } else {
+            throw new IllegalArgumentException("出库单ID或出库单号不能为空");
+        }
         if (STATUS_COMPLETED.equals(order.getStatus())) {
             throw new IllegalStateException("已完成单据不允许再次出库");
         }
@@ -388,6 +397,84 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
         details = outboundOrderDetailRepository.findByOutboundOrderIdOrderByLineNoAsc(order.getId());
         return new OutboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details), toInventoryStockDTOs(details));
+    }
+
+    @Override
+    @Transactional
+    public OutboundOrderDetailResponse issueWithoutOrder(OutboundOrderlessRequest request, String operator) {
+        String materialCode = trimToNull(request.getMaterialCode());
+        String materialName = trimToNull(request.getMaterialName());
+        String supplierCode = trimToNull(request.getSupplierCode());
+        String supplierName = trimToNull(request.getSupplierName());
+        int issueQty = safeInt(request.getIssueQty());
+
+        if (materialCode == null || materialName == null || supplierCode == null || supplierName == null) {
+            throw new IllegalArgumentException("物料代码、物料名称、需求方代码、需求方名称不能为空");
+        }
+        if (issueQty <= 0) {
+            throw new IllegalArgumentException("出库数量必须大于0");
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+        String docNo = generateDocNo();
+
+        OutboundOrder order = new OutboundOrder();
+        order.setDocNo(docNo);
+        order.setSupplier(supplierName);
+        order.setStatus(STATUS_PENDING);
+        order.setItemCount(1);
+        order.setPlannedTotalQty(issueQty);
+        order.setActualTotalQty(0);
+        order.setOutboundType("不带单出库");
+        order.setRemark(trimToNull(request.getRemark()));
+        order.setCreatedBy(currentOperator);
+        order.setUpdatedBy(currentOperator);
+        order.setCreatedAt(now);
+        order.setUpdatedAt(now);
+
+        OutboundOrder savedOrder = outboundOrderRepository.saveAndFlush(order);
+
+        OutboundOrderDetail detail = new OutboundOrderDetail();
+        detail.setOutboundOrderId(savedOrder.getId());
+        detail.setDocNo(savedOrder.getDocNo());
+        detail.setLineNo(1);
+        detail.setSupplierCode(supplierCode);
+        detail.setSupplierName(supplierName);
+        detail.setMaterialCode(materialCode);
+        detail.setMaterialName(materialName);
+        detail.setPlannedQty(issueQty);
+        detail.setActualQty(0);
+        detail.setWarehouseArea(defaultIfBlank(request.getWarehouseArea(), "默认库区"));
+        detail.setRemark(trimToNull(request.getRemark()));
+        detail.setCreatedBy(currentOperator);
+        detail.setUpdatedBy(currentOperator);
+        detail.setCreatedAt(now);
+        detail.setUpdatedAt(now);
+
+        outboundOrderDetailRepository.save(detail);
+
+        List<OutboundOrderDetail> details = new ArrayList<>();
+        details.add(detail);
+
+        List<OutboundHistory> historyRecords = allocateFIFO(savedOrder, detail, issueQty, currentOperator, now);
+        if (!historyRecords.isEmpty()) {
+            outboundHistoryRepository.saveAll(historyRecords);
+        }
+
+        detail.setActualQty(issueQty);
+        detail.setUpdatedBy(currentOperator);
+        detail.setUpdatedAt(now);
+        outboundOrderDetailRepository.save(detail);
+
+        savedOrder.setPlannedTotalQty(issueQty);
+        savedOrder.setActualTotalQty(issueQty);
+        savedOrder.setStatus(calculateStatus(issueQty, issueQty));
+        savedOrder.setUpdatedBy(currentOperator);
+        savedOrder.setUpdatedAt(now);
+        outboundOrderRepository.save(savedOrder);
+
+        return new OutboundOrderDetailResponse(toSummaryDTO(savedOrder), toDetailDTOs(details), toInventoryStockDTOs(details));
     }
 
     // ==================== Private Helpers ====================
@@ -604,6 +691,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 order.getItemCount(),
                 order.getPlannedTotalQty(),
                 order.getActualTotalQty(),
+                order.getOutboundType(),
                 order.getRemark(),
                 order.getCreatedBy(),
                 order.getUpdatedBy(),

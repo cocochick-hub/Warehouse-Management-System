@@ -2,6 +2,7 @@ package com.example.wms.controller;
 
 import com.example.wms.dto.ApiResult;
 import com.example.wms.dto.outbound.OutboundOrderDetailResponse;
+import com.example.wms.dto.outbound.OutboundOrderlessRequest;
 import com.example.wms.dto.outbound.OutboundScanIssueRequest;
 import com.example.wms.dto.outbound.OutboundScanLabelResponse;
 import com.example.wms.service.OutboundOrderService;
@@ -30,6 +31,12 @@ public class OutboundScanController {
     public ApiResult<OutboundOrderDetailResponse> issueByScan(@Valid @RequestBody OutboundScanIssueRequest request) {
         OutboundOrderDetailResponse data = outboundOrderService.issueByScan(request, currentUsername());
         return ApiResult.success("扫码出库成功", data);
+    }
+
+    @PostMapping("/orderless-issue")
+    public ApiResult<OutboundOrderDetailResponse> issueWithoutOrder(@Valid @RequestBody OutboundOrderlessRequest request) {
+        OutboundOrderDetailResponse data = outboundOrderService.issueWithoutOrder(request, currentUsername());
+        return ApiResult.success("不带单出库成功", data);
     }
 
     private String currentUsername() {

@@ -32,6 +32,9 @@ public class OutboundOrder extends BaseEntity {
     @Column(name = "actual_total_qty", nullable = false)
     private Integer actualTotalQty = 0;
 
+    @Column(name = "outbound_type", nullable = false, length = 20)
+    private String outboundType = "带单出库";
+
     @Column(length = 255)
     private String remark;
 }

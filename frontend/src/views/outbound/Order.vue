@@ -41,6 +41,11 @@
           <el-tag :type="outboundStatusType(row.status)" size="small">{{ row.status }}</el-tag>
         </template>
       </el-table-column>
+      <el-table-column prop="outboundType" label="出库方式" width="110">
+        <template #default="{ row }">
+          <el-tag :type="outboundTypeTagType(row.outboundType)" size="small">{{ row.outboundType }}</el-tag>
+        </template>
+      </el-table-column>
       <el-table-column prop="createdAt" label="创建时间" width="180">
         <template #default="{ row }">
           {{ formatDateTime(row.createdAt) }}
@@ -243,6 +248,10 @@ function outboundStatusType(status) {
   if (status === '已完成') return 'success'
   if (status === '部分完成') return 'info'
   return 'warning'
+}
+
+function outboundTypeTagType(type) {
+  return type === '带单出库' ? 'success' : 'info'
 }
 </script>
 

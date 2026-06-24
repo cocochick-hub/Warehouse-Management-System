@@ -5,6 +5,7 @@ import com.example.wms.dto.outbound.OutboundOrderDetailResponse;
 import com.example.wms.dto.outbound.OutboundOrderPageResponse;
 import com.example.wms.dto.outbound.OutboundHistoryDTO;
 import com.example.wms.dto.outbound.OutboundIssueRequest;
+import com.example.wms.dto.outbound.OutboundOrderlessRequest;
 import com.example.wms.dto.outbound.OutboundScanIssueRequest;
 import com.example.wms.dto.outbound.OutboundScanLabelResponse;
 
@@ -25,4 +26,6 @@ public interface OutboundOrderService {
     OutboundScanLabelResponse getOutboundScanLabel(String kanbanNo);
 
     OutboundOrderDetailResponse issueByScan(OutboundScanIssueRequest request, String operator);
+
+    OutboundOrderDetailResponse issueWithoutOrder(OutboundOrderlessRequest request, String operator);
 }

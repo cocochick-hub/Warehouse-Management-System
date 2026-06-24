@@ -16,5 +16,7 @@ public class OutboundScanIssueRequest {
 
     private Long outboundOrderId;
 
+    private String outboundDocNo;
+
     private String warehouseArea;
 }

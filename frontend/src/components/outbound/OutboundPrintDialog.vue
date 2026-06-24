@@ -18,6 +18,7 @@
         <div class="order-meta">
           <span>单号：{{ order.docNo }}</span>
           <span>需求方：{{ order.supplier }}</span>
+          <span>出库方式：{{ order.outboundType }}</span>
           <span>日期：{{ printDate }}</span>
         </div>
       </div>

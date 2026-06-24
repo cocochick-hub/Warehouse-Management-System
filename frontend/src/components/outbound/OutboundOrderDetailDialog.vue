@@ -16,6 +16,11 @@
               {{ detail.order.status }}
             </el-tag>
           </el-descriptions-item>
+          <el-descriptions-item label="出库方式">
+            <el-tag :type="detail.order.outboundType === '带单出库' ? 'success' : 'info'" size="small">
+              {{ detail.order.outboundType }}
+            </el-tag>
+          </el-descriptions-item>
           <el-descriptions-item label="明细条数">{{ detail.order.itemCount }}</el-descriptions-item>
           <el-descriptions-item label="计划总数">{{ detail.order.plannedTotalQty }}</el-descriptions-item>
           <el-descriptions-item label="实出总数">{{ detail.order.actualTotalQty }}</el-descriptions-item>
