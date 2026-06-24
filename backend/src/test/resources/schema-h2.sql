@@ -265,3 +265,35 @@ INSERT INTO warehouse_area (area_code, area_name, sort_order, description) VALUE
 ('WA-DEFAULT', '默认库区', 1, '系统默认库区'),
 ('WA-AREA-01', '库区1', 2, '库区1'),
 ('WA-AREA-02', '库区2', 3, '库区2');
+
+-- ============================================================================
+-- 物料需求管理表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS demand_batch (
+    id          BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_no    VARCHAR(50)  NOT NULL,
+    item_count  INT          NOT NULL DEFAULT 0,
+    total_qty   INT          NOT NULL DEFAULT 0,
+    import_type VARCHAR(20)  NOT NULL DEFAULT 'MANUAL',
+    created_by  VARCHAR(50)  DEFAULT 'system',
+    created_at  TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (batch_no)
+);
+
+CREATE TABLE IF NOT EXISTS demand_detail (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    batch_id        BIGINT       NOT NULL,
+    batch_no        VARCHAR(50)  NOT NULL,
+    material_code   VARCHAR(50)  NOT NULL,
+    material_name   VARCHAR(100) NOT NULL,
+    supplier_code   VARCHAR(50)  NOT NULL,
+    supplier_name   VARCHAR(100) NOT NULL,
+    demand_qty      INT          NOT NULL,
+    fulfilled_qty   INT          NOT NULL DEFAULT 0,
+    demand_date     DATE         DEFAULT NULL,
+    warehouse_area  VARCHAR(100) DEFAULT '默认库区',
+    status          VARCHAR(20)  NOT NULL DEFAULT '待出库',
+    remark          VARCHAR(255) DEFAULT NULL,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (batch_id) REFERENCES demand_batch (id)
+);

@@ -435,3 +435,40 @@ CREATE TABLE IF NOT EXISTS ai_alert (
 -- 删除旧的 (material_code, supplier) 唯一键，替换为 (material_code, supplier, warehouse_area)
 ALTER TABLE inventory_stock DROP INDEX uk_inventory_stock_material_supplier;
 ALTER TABLE inventory_stock ADD UNIQUE KEY uk_inventory_stock_material_supplier_area (material_code, supplier, warehouse_area);
+
+-- ============================================================================
+-- 13. 物料需求管理表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS demand_batch (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    batch_no        VARCHAR(50)  NOT NULL COMMENT '需求批次号',
+    item_count      INT          NOT NULL DEFAULT 0 COMMENT '物料种类数',
+    total_qty       INT          NOT NULL DEFAULT 0 COMMENT '需求总数量',
+    import_type     VARCHAR(20)  NOT NULL DEFAULT 'MANUAL' COMMENT '录入方式：MANUAL(手工)/EXCEL(导入)',
+    created_by      VARCHAR(50)  DEFAULT 'system' COMMENT '操作人',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    UNIQUE KEY uk_demand_batch_no (batch_no),
+    KEY idx_demand_batch_created_at (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料需求批次表';
+
+CREATE TABLE IF NOT EXISTS demand_detail (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    batch_id        BIGINT       NOT NULL COMMENT '需求批次ID',
+    batch_no        VARCHAR(50)  NOT NULL COMMENT '需求批次号冗余',
+    material_code   VARCHAR(50)  NOT NULL COMMENT '物料号',
+    material_name   VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    supplier_code   VARCHAR(50)  NOT NULL COMMENT '供应商代码快照',
+    supplier_name   VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
+    demand_qty      INT          NOT NULL COMMENT '需求数量',
+    fulfilled_qty   INT          NOT NULL DEFAULT 0 COMMENT '已满足数量',
+    demand_date     DATE         DEFAULT NULL COMMENT '需求日期',
+    warehouse_area  VARCHAR(100) DEFAULT '默认库区' COMMENT '期望库区',
+    status          VARCHAR(20)  NOT NULL DEFAULT '待出库' COMMENT '状态：待出库/部分完成/已完成',
+    remark          VARCHAR(255) DEFAULT NULL COMMENT '备注',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    CONSTRAINT fk_demand_detail_batch FOREIGN KEY (batch_id) REFERENCES demand_batch (id),
+    KEY idx_demand_detail_batch_no (batch_no),
+    KEY idx_demand_detail_material (material_code),
+    KEY idx_demand_detail_status (status),
+    KEY idx_demand_detail_demand_date (demand_date)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='物料需求明细表';
