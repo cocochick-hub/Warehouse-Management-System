@@ -253,3 +253,24 @@ CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     FOREIGN KEY (inbound_order_detail_id) REFERENCES inbound_order_detail (id),
     UNIQUE (kanban_no)
 );
+
+-- ============================================================================
+-- 10. 库区管理表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS warehouse_area (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    area_code       VARCHAR(50)  NOT NULL,
+    area_name       VARCHAR(100) NOT NULL,
+    sort_order      INT          DEFAULT 0,
+    description     VARCHAR(255) DEFAULT NULL,
+    created_by      VARCHAR(50)  DEFAULT 'system',
+    updated_by      VARCHAR(50)  DEFAULT 'system',
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    UNIQUE (area_code)
+);
+
+INSERT INTO warehouse_area (area_code, area_name, sort_order, description) VALUES
+('WA-DEFAULT', '默认库区', 1, '系统默认库区'),
+('WA-AREA-01', '库区1', 2, '库区1'),
+('WA-AREA-02', '库区2', 3, '库区2');

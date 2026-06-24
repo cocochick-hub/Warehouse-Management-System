@@ -20,9 +20,12 @@
       <el-form-item label="库区">
         <el-select v-model="query.warehouseArea" placeholder="全部" clearable style="width: 130px">
           <el-option label="全部" value="" />
-          <el-option label="默认库区" value="默认库区" />
-          <el-option label="库区1" value="库区1" />
-          <el-option label="库区2" value="库区2" />
+          <el-option
+            v-for="area in warehouseAreaOptions"
+            :key="area.areaCode"
+            :label="area.areaName"
+            :value="area.areaName"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -74,6 +77,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import PageContainer from '@/components/PageContainer.vue'
 import { getInventoryStocksApi } from '@/api/inventory'
+import { getWarehouseAreasApi } from '@/api/basic'
 import { formatDateTime } from '@/utils/inbound'
 
 const query = reactive({
@@ -86,6 +90,7 @@ const query = reactive({
 
 const loading = ref(false)
 const tableData = ref([])
+const warehouseAreaOptions = ref([])
 const pagination = reactive({
   page: 1,
   size: 10,
@@ -94,6 +99,7 @@ const pagination = reactive({
 
 onMounted(() => {
   fetchStocks()
+  fetchWarehouseAreas()
 })
 
 async function fetchStocks() {
@@ -115,6 +121,15 @@ async function fetchStocks() {
     pagination.total = 0
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchWarehouseAreas() {
+  try {
+    const { data } = await getWarehouseAreasApi()
+    warehouseAreaOptions.value = data || []
+  } catch {
+    warehouseAreaOptions.value = []
   }
 }
 

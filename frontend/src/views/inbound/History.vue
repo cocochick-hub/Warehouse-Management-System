@@ -20,9 +20,12 @@
       <el-form-item label="库区">
         <el-select v-model="query.warehouseArea" placeholder="全部" clearable style="width: 130px">
           <el-option label="全部" value="" />
-          <el-option label="默认库区" value="默认库区" />
-          <el-option label="库区1" value="库区1" />
-          <el-option label="库区2" value="库区2" />
+          <el-option
+            v-for="area in warehouseAreaOptions"
+            :key="area.areaCode"
+            :label="area.areaName"
+            :value="area.areaName"
+          />
         </el-select>
       </el-form-item>
       <el-form-item>
@@ -96,6 +99,7 @@ import PageContainer from '@/components/PageContainer.vue'
 import InboundOrderDetailDialog from '@/components/inbound/InboundOrderDetailDialog.vue'
 import InboundOrderPrintDialog from '@/components/inbound/InboundOrderPrintDialog.vue'
 import { getInboundHistoryApi, getInboundOrderDetailApi } from '@/api/inbound'
+import { getWarehouseAreasApi } from '@/api/basic'
 import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const query = reactive({
@@ -108,6 +112,7 @@ const query = reactive({
 
 const loading = ref(false)
 const tableData = ref([])
+const warehouseAreaOptions = ref([])
 const detailVisible = ref(false)
 const printOrderVisible = ref(false)
 const currentDetail = ref(null)
@@ -120,6 +125,7 @@ const pagination = reactive({
 
 onMounted(() => {
   fetchHistory()
+  fetchWarehouseAreas()
 })
 
 async function fetchHistory() {
@@ -141,6 +147,15 @@ async function fetchHistory() {
     pagination.total = 0
   } finally {
     loading.value = false
+  }
+}
+
+async function fetchWarehouseAreas() {
+  try {
+    const { data } = await getWarehouseAreasApi()
+    warehouseAreaOptions.value = data || []
+  } catch {
+    warehouseAreaOptions.value = []
   }
 }
 

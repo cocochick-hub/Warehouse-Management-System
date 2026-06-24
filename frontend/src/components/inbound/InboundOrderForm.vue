@@ -81,13 +81,9 @@
         </el-table-column>
         <el-table-column label="包装容量" width="110">
           <template #default="{ row }">
-            <el-input-number
-              v-model="row.packagingCapacity"
-              :min="0"
-              :step="1"
-              controls-position="right"
-              @change="() => updatePackageCount(row)"
-            />
+            <span :class="{ 'no-capacity': !row.packagingCapacity }">
+              {{ row.packagingCapacity ? row.packagingCapacity + ' 个/箱' : '未配置' }}
+            </span>
           </template>
         </el-table-column>
         <el-table-column label="计划数量" width="110">
@@ -109,9 +105,12 @@
         <el-table-column label="库区" width="130">
           <template #default="{ row }">
             <el-select v-model="row.warehouseArea" placeholder="库区" style="width: 100%">
-              <el-option label="默认库区" value="默认库区" />
-              <el-option label="库区1" value="库区1" />
-              <el-option label="库区2" value="库区2" />
+              <el-option
+                v-for="area in warehouseAreaOptions"
+                :key="area.areaCode"
+                :label="area.areaName"
+                :value="area.areaName"
+              />
             </el-select>
           </template>
         </el-table-column>
@@ -138,7 +137,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getMaterialsApi, getSuppliersApi } from '@/api/basic'
+import { getMaterialsApi, getSuppliersApi, getWarehouseAreasApi } from '@/api/basic'
 
 const props = defineProps({
   visible: {
@@ -156,6 +155,7 @@ const emit = defineEmits(['update:visible', 'submit'])
 const formRef = ref()
 const form = reactive(createDefaultForm())
 const supplierOptions = ref([])
+const warehouseAreaOptions = ref([])
 
 const rules = {}
 
@@ -164,7 +164,7 @@ watch(
   async (value) => {
     if (value) {
       resetForm()
-      await fetchSuppliers()
+      await Promise.all([fetchSuppliers(), fetchWarehouseAreas()])
     }
   }
 )
@@ -268,6 +268,11 @@ function validateDetails() {
 async function fetchSuppliers() {
   const { data } = await getSuppliersApi()
   supplierOptions.value = data || []
+}
+
+async function fetchWarehouseAreas() {
+  const { data } = await getWarehouseAreasApi()
+  warehouseAreaOptions.value = data || []
 }
 
 async function handleRowSupplierChange(row, supplierCode, index) {
@@ -399,5 +404,10 @@ function boxCountText(row) {
   color: #606266;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.no-capacity {
+  color: #999;
+  font-style: italic;
 }
 </style>

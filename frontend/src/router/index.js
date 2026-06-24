@@ -47,6 +47,12 @@ const routes = [
             name: 'Supplier',
             component: () => import('@/views/basic/Supplier.vue'),
             meta: { title: '供应商管理' }
+          },
+          {
+            path: 'warehouse-area',
+            name: 'WarehouseArea',
+            component: () => import('@/views/basic/WarehouseArea.vue'),
+            meta: { title: '库区管理' }
           }
         ]
       },

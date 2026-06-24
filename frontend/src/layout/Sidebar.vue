@@ -35,6 +35,10 @@
           <el-icon><Tickets /></el-icon>
           <span>供应商管理</span>
         </el-menu-item>
+        <el-menu-item index="/basic/warehouse-area">
+          <el-icon><Tickets /></el-icon>
+          <span>库区管理</span>
+        </el-menu-item>
       </el-sub-menu>
 
       <el-sub-menu index="inbound">

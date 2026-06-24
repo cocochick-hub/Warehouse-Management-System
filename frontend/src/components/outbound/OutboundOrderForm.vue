@@ -49,9 +49,16 @@
             <el-input-number v-model="row.plannedQty" :min="1" :step="1" controls-position="right" />
           </template>
         </el-table-column>
-        <el-table-column label="库区" width="100">
+        <el-table-column label="库区" width="140">
           <template #default="{ row }">
-            <el-input v-model="row.warehouseArea" placeholder="默认库区" maxlength="100" />
+            <el-select v-model="row.warehouseArea" placeholder="默认库区" style="width: 100%">
+              <el-option
+                v-for="area in warehouseAreaOptions"
+                :key="area.areaCode"
+                :label="area.areaName"
+                :value="area.areaName"
+              />
+            </el-select>
           </template>
         </el-table-column>
         <el-table-column label="备注" min-width="140">
@@ -77,7 +84,7 @@
 <script setup>
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
-import { getMaterialsApi } from '@/api/basic'
+import { getMaterialsApi, getWarehouseAreasApi } from '@/api/basic'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },
@@ -89,9 +96,13 @@ const emit = defineEmits(['update:visible', 'submit'])
 
 const formRef = ref()
 const form = reactive(createDefaultForm())
+const warehouseAreaOptions = ref([])
 
-watch(() => props.visible, (value) => {
-  if (value) resetForm()
+watch(() => props.visible, async (value) => {
+  if (value) {
+    resetForm()
+    await fetchWarehouseAreas()
+  }
 })
 
 function createDefaultDetail() {
@@ -146,6 +157,15 @@ function handleMaterialChange(row, materialNo) {
   if (!m) { row.materialCode = ''; row.materialName = ''; return }
   row.materialCode = m.materialNo
   row.materialName = m.materialName
+}
+
+async function fetchWarehouseAreas() {
+  try {
+    const { data } = await getWarehouseAreasApi()
+    warehouseAreaOptions.value = data || []
+  } catch {
+    warehouseAreaOptions.value = []
+  }
 }
 
 function validateDetails() {

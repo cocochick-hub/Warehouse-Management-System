@@ -3,15 +3,19 @@ package com.example.wms.service.impl;
 import com.example.wms.dto.basic.MaterialOptionDTO;
 import com.example.wms.dto.basic.PackagingInfoDTO;
 import com.example.wms.dto.basic.SupplierOptionDTO;
+import com.example.wms.dto.basic.WarehouseAreaDTO;
 import com.example.wms.entity.MaterialInfo;
 import com.example.wms.entity.PackagingInfo;
 import com.example.wms.entity.SupplierInfo;
+import com.example.wms.entity.WarehouseArea;
 import com.example.wms.repository.MaterialInfoRepository;
 import com.example.wms.repository.PackagingInfoRepository;
 import com.example.wms.repository.SupplierInfoRepository;
+import com.example.wms.repository.WarehouseAreaRepository;
 import com.example.wms.service.BasicDataService;
 import org.springframework.stereotype.Service;
 
+import javax.persistence.EntityNotFoundException;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -22,13 +26,16 @@ public class BasicDataServiceImpl implements BasicDataService {
     private final SupplierInfoRepository supplierInfoRepository;
     private final MaterialInfoRepository materialInfoRepository;
     private final PackagingInfoRepository packagingInfoRepository;
+    private final WarehouseAreaRepository warehouseAreaRepository;
 
     public BasicDataServiceImpl(SupplierInfoRepository supplierInfoRepository,
                                 MaterialInfoRepository materialInfoRepository,
-                                PackagingInfoRepository packagingInfoRepository) {
+                                PackagingInfoRepository packagingInfoRepository,
+                                WarehouseAreaRepository warehouseAreaRepository) {
         this.supplierInfoRepository = supplierInfoRepository;
         this.materialInfoRepository = materialInfoRepository;
         this.packagingInfoRepository = packagingInfoRepository;
+        this.warehouseAreaRepository = warehouseAreaRepository;
     }
 
     @Override
@@ -82,5 +89,58 @@ public class BasicDataServiceImpl implements BasicDataService {
                         item.getPackageCapacity()
                 ))
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<WarehouseAreaDTO> listWarehouseAreas() {
+        return warehouseAreaRepository.findAllByOrderBySortOrderAsc().stream()
+                .map(item -> new WarehouseAreaDTO(
+                        item.getId(),
+                        item.getAreaCode(),
+                        item.getAreaName(),
+                        item.getSortOrder(),
+                        item.getDescription()
+                ))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public WarehouseAreaDTO createWarehouseArea(WarehouseAreaDTO dto) {
+        WarehouseArea entity = new WarehouseArea();
+        entity.setAreaCode(dto.getAreaCode());
+        entity.setAreaName(dto.getAreaName());
+        entity.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
+        entity.setDescription(dto.getDescription());
+        WarehouseArea saved = warehouseAreaRepository.save(entity);
+        return toDTO(saved);
+    }
+
+    @Override
+    public WarehouseAreaDTO updateWarehouseArea(Long id, WarehouseAreaDTO dto) {
+        WarehouseArea entity = warehouseAreaRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("库区不存在"));
+        entity.setAreaName(dto.getAreaName());
+        entity.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
+        entity.setDescription(dto.getDescription());
+        WarehouseArea saved = warehouseAreaRepository.save(entity);
+        return toDTO(saved);
+    }
+
+    @Override
+    public void deleteWarehouseArea(Long id) {
+        if (!warehouseAreaRepository.existsById(id)) {
+            throw new EntityNotFoundException("库区不存在");
+        }
+        warehouseAreaRepository.deleteById(id);
+    }
+
+    private WarehouseAreaDTO toDTO(WarehouseArea entity) {
+        return new WarehouseAreaDTO(
+                entity.getId(),
+                entity.getAreaCode(),
+                entity.getAreaName(),
+                entity.getSortOrder(),
+                entity.getDescription()
+        );
     }
 }

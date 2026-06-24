@@ -390,6 +390,29 @@ INSERT INTO outbound_order (doc_no, supplier, status, created_by) VALUES
 ON DUPLICATE KEY UPDATE doc_no = VALUES(doc_no);
 
 -- ============================================================================
+-- 10. 库区管理表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS warehouse_area (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    area_code       VARCHAR(50)  NOT NULL COMMENT '库区代码',
+    area_name       VARCHAR(100) NOT NULL COMMENT '库区名称',
+    sort_order      INT          DEFAULT 0 COMMENT '排序号',
+    description     VARCHAR(255) DEFAULT NULL COMMENT '描述说明',
+    created_by      VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
+    updated_by      VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP COMMENT '更新时间',
+    UNIQUE KEY uk_warehouse_area_code (area_code),
+    KEY idx_warehouse_area_sort (sort_order)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='库区管理表';
+
+INSERT INTO warehouse_area (area_code, area_name, sort_order, description) VALUES
+('WA-DEFAULT', '默认库区', 1, '系统默认库区'),
+('WA-AREA-01', '库区1', 2, '库区1'),
+('WA-AREA-02', '库区2', 3, '库区2')
+ON DUPLICATE KEY UPDATE area_name = VALUES(area_name);
+
+-- ============================================================================
 -- 11. 退库功能：出库历史增加状态字段
 -- ============================================================================
 ALTER TABLE outbound_history

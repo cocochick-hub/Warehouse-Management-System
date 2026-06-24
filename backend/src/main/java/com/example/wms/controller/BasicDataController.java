@@ -4,11 +4,9 @@ import com.example.wms.dto.ApiResult;
 import com.example.wms.dto.basic.MaterialOptionDTO;
 import com.example.wms.dto.basic.PackagingInfoDTO;
 import com.example.wms.dto.basic.SupplierOptionDTO;
+import com.example.wms.dto.basic.WarehouseAreaDTO;
 import com.example.wms.service.BasicDataService;
-import org.springframework.web.bind.annotation.GetMapping;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestParam;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
@@ -35,5 +33,28 @@ public class BasicDataController {
     @GetMapping("/packaging")
     public ApiResult<List<PackagingInfoDTO>> listPackagingInfos() {
         return ApiResult.success(basicDataService.listPackagingInfos());
+    }
+
+    // ==================== 库区管理 ====================
+
+    @GetMapping("/warehouse-areas")
+    public ApiResult<List<WarehouseAreaDTO>> listWarehouseAreas() {
+        return ApiResult.success(basicDataService.listWarehouseAreas());
+    }
+
+    @PostMapping("/warehouse-areas")
+    public ApiResult<WarehouseAreaDTO> createWarehouseArea(@RequestBody WarehouseAreaDTO dto) {
+        return ApiResult.success(basicDataService.createWarehouseArea(dto));
+    }
+
+    @PutMapping("/warehouse-areas/{id}")
+    public ApiResult<WarehouseAreaDTO> updateWarehouseArea(@PathVariable Long id, @RequestBody WarehouseAreaDTO dto) {
+        return ApiResult.success(basicDataService.updateWarehouseArea(id, dto));
+    }
+
+    @DeleteMapping("/warehouse-areas/{id}")
+    public ApiResult<Void> deleteWarehouseArea(@PathVariable Long id) {
+        basicDataService.deleteWarehouseArea(id);
+        return ApiResult.success(null);
     }
 }
