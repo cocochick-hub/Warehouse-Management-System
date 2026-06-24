@@ -3,6 +3,7 @@ package com.example.wms.service.impl;
 import com.example.wms.dto.DashboardDTO;
 import com.example.wms.dto.PendingTaskDTO;
 import com.example.wms.entity.AlertThreshold;
+import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.entity.InboundOrder;
 import com.example.wms.entity.InventoryStock;
 import com.example.wms.entity.OutboundOrder;
@@ -25,17 +26,20 @@ public class DashboardServiceImpl implements DashboardService {
     private final InventoryStockRepository inventoryStockRepository;
     private final MaterialInfoRepository materialInfoRepository;
     private final AlertThresholdRepository alertThresholdRepository;
+    private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
 
     public DashboardServiceImpl(InboundOrderRepository inboundOrderRepository,
                                 OutboundOrderRepository outboundOrderRepository,
                                 InventoryStockRepository inventoryStockRepository,
                                 MaterialInfoRepository materialInfoRepository,
-                                AlertThresholdRepository alertThresholdRepository) {
+                                AlertThresholdRepository alertThresholdRepository,
+                                InboundKanbanLabelRepository inboundKanbanLabelRepository) {
         this.inboundOrderRepository = inboundOrderRepository;
         this.outboundOrderRepository = outboundOrderRepository;
         this.inventoryStockRepository = inventoryStockRepository;
         this.materialInfoRepository = materialInfoRepository;
         this.alertThresholdRepository = alertThresholdRepository;
+        this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
     }
 
     @Override
@@ -89,6 +93,15 @@ public class DashboardServiceImpl implements DashboardService {
         for (InventoryStock s : allStocks) {
             String key = s.getSupplier() + "::" + s.getMaterialCode();
             stockMap.merge(key, s.getOnHandQty() != null ? s.getOnHandQty() : 0, Integer::sum);
+        }
+
+        // 剔除已封存的库存数量
+        List<InboundKanbanLabel> sealedLabels = inboundKanbanLabelRepository.findBySealedTrue();
+        for (InboundKanbanLabel label : sealedLabels) {
+            if (label.getLabelQty() == null || label.getLabelQty() <= 0) continue;
+            String key = label.getSupplierName() + "::" + label.getMaterialCode();
+            Integer current = stockMap.getOrDefault(key, 0);
+            stockMap.put(key, Math.max(0, current - label.getLabelQty()));
         }
 
         for (AlertThreshold t : thresholds) {

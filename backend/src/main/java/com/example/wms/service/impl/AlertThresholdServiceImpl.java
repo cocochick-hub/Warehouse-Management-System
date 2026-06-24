@@ -2,8 +2,10 @@ package com.example.wms.service.impl;
 
 import com.example.wms.dto.alert.AlertThresholdDTO;
 import com.example.wms.entity.AlertThreshold;
+import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.entity.InventoryStock;
 import com.example.wms.repository.AlertThresholdRepository;
+import com.example.wms.repository.InboundKanbanLabelRepository;
 import com.example.wms.repository.InventoryStockRepository;
 import com.example.wms.service.AlertThresholdService;
 import org.springframework.stereotype.Service;
@@ -21,11 +23,14 @@ public class AlertThresholdServiceImpl implements AlertThresholdService {
 
     private final AlertThresholdRepository thresholdRepo;
     private final InventoryStockRepository stockRepo;
+    private final InboundKanbanLabelRepository kanbanLabelRepo;
 
     public AlertThresholdServiceImpl(AlertThresholdRepository thresholdRepo,
-                                     InventoryStockRepository stockRepo) {
+                                     InventoryStockRepository stockRepo,
+                                     InboundKanbanLabelRepository kanbanLabelRepo) {
         this.thresholdRepo = thresholdRepo;
         this.stockRepo = stockRepo;
+        this.kanbanLabelRepo = kanbanLabelRepo;
     }
 
     @Override
@@ -38,6 +43,16 @@ public class AlertThresholdServiceImpl implements AlertThresholdService {
             String key = s.getSupplier() + "::" + s.getMaterialCode();
             stockMap.merge(key, s.getOnHandQty() != null ? s.getOnHandQty() : 0, Integer::sum);
             nameMap.putIfAbsent(key, s.getMaterialName());
+        }
+
+        // 剔除已封存的库存数量（看板标签 sealed=true 的数量不计入当前库存）
+        List<InboundKanbanLabel> sealedLabels = kanbanLabelRepo.findBySealedTrue();
+        for (InboundKanbanLabel label : sealedLabels) {
+            if (label.getLabelQty() == null || label.getLabelQty() <= 0) continue;
+            String key = label.getSupplierName() + "::" + label.getMaterialCode();
+            Integer current = stockMap.getOrDefault(key, 0);
+            int deducted = Math.max(0, current - label.getLabelQty());
+            stockMap.put(key, deducted);
         }
 
         // 读取已配置的阈值
