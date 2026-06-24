@@ -73,64 +73,66 @@
     </div>
 
     <!-- 手工创建需求弹窗 -->
-    <el-dialog v-model="createVisible" title="手工创建需求" width="700px" destroy-on-close>
-      <el-form ref="createFormRef" :model="createForm" label-width="90px">
+    <el-dialog v-model="createVisible" title="手工创建需求" width="800px" destroy-on-close>
+      <el-form ref="createFormRef" :model="createForm" label-width="80px">
         <div v-for="(item, idx) in createForm.items" :key="idx" class="create-item-row">
-          <el-row :gutter="8">
-            <el-col :span="5">
+          <!-- 第一行：物料号 + 物料名称 + 供应商（下拉选择） -->
+          <el-row :gutter="10">
+            <el-col :span="7">
               <el-form-item label="物料号" :prop="`items.${idx}.materialCode`"
                 :rules="[{ required: true, message: '必填' }]">
                 <el-input v-model="item.materialCode" placeholder="如 MAT-TOOL-001" />
               </el-form-item>
             </el-col>
-            <el-col :span="6">
-              <el-form-item label="名称" :prop="`items.${idx}.materialName`"
+            <el-col :span="8">
+              <el-form-item label="物料名称" :prop="`items.${idx}.materialName`"
                 :rules="[{ required: true, message: '必填' }]">
                 <el-input v-model="item.materialName" placeholder="物料名称" />
               </el-form-item>
             </el-col>
-            <el-col :span="5">
+            <el-col :span="9">
               <el-form-item label="供应商" :prop="`items.${idx}.supplierName`"
-                :rules="[{ required: true, message: '必填' }]">
-                <el-input v-model="item.supplierName" placeholder="供应商名称" />
+                :rules="[{ required: true, message: '必选' }]">
+                <el-select v-model="item.supplierName" placeholder="选择供应商" filterable style="width:100%"
+                  @change="(val) => onSupplierChange(idx, val)">
+                  <el-option v-for="sup in supplierOptions" :key="sup.supplierCode"
+                    :label="sup.supplierName" :value="sup.supplierCode + '::' + sup.supplierName" />
+                </el-select>
               </el-form-item>
             </el-col>
           </el-row>
-          <el-row :gutter="8">
-            <el-col :span="3">
+          <!-- 第二行：需求数量 + 需求日期 + 库区（下拉选择） + 备注 + 删除 -->
+          <el-row :gutter="10">
+            <el-col :span="5">
               <el-form-item label="数量" :prop="`items.${idx}.demandQty`"
                 :rules="[{ required: true, message: '必填' }]">
                 <el-input-number v-model="item.demandQty" :min="1" controls-position="right" style="width:100%" />
               </el-form-item>
             </el-col>
-            <el-col :span="4">
-              <el-form-item label="日期">
+            <el-col :span="6">
+              <el-form-item label="需求日期">
                 <el-date-picker v-model="item.demandDate" type="date" placeholder="需求日期" value-format="YYYY-MM-DD"
                   style="width:100%" />
               </el-form-item>
             </el-col>
-            <el-col :span="4">
+            <el-col :span="6">
               <el-form-item label="库区">
-                <el-input v-model="item.warehouseArea" placeholder="默认库区" />
+                <el-select v-model="item.warehouseArea" placeholder="默认库区" clearable style="width:100%">
+                  <el-option v-for="area in warehouseAreaOptions" :key="area.areaCode"
+                    :label="area.areaName" :value="area.areaName" />
+                </el-select>
               </el-form-item>
             </el-col>
-            <el-col :span="3">
+            <el-col :span="5">
               <el-form-item label="备注">
                 <el-input v-model="item.remark" placeholder="备注" />
               </el-form-item>
             </el-col>
             <el-col :span="2">
-              <el-button type="danger" link @click="removeItem(idx)" :disabled="createForm.items.length <= 1">
+              <el-button type="danger" link @click="removeItem(idx)" :disabled="createForm.items.length <= 1"
+                style="margin-top:4px">
                 <el-icon><Delete /></el-icon>
               </el-button>
-            </el-col>
-          </el-row>
-          <el-row :gutter="8">
-            <el-col :span="5">
-              <el-form-item label="供应商代码" :prop="`items.${idx}.supplierCode`"
-                :rules="[{ required: true, message: '必填' }]">
-                <el-input v-model="item.supplierCode" placeholder="如 SUP-001" />
-              </el-form-item>
             </el-col>
           </el-row>
           <el-divider v-if="idx < createForm.items.length - 1" style="margin: 8px 0" />
@@ -153,6 +155,7 @@
 import { onMounted, reactive, ref } from 'vue'
 import PageContainer from '@/components/PageContainer.vue'
 import { listDemandsApi, createDemandApi } from '@/api/demand'
+import { getSuppliersApi, getWarehouseAreasApi } from '@/api/basic'
 import { formatDateTime } from '@/utils/inbound'
 import { ElMessage } from 'element-plus'
 
@@ -165,6 +168,8 @@ const pagination = reactive({ page: 1, size: 10, total: 0 })
 const createVisible = ref(false)
 const createFormRef = ref(null)
 const submitting = ref(false)
+const supplierOptions = ref([])
+const warehouseAreaOptions = ref([])
 const createForm = reactive({
   items: [newItem()]
 })
@@ -176,9 +181,38 @@ function newItem() {
 function addItem() { createForm.items.push(newItem()) }
 function removeItem(idx) { createForm.items.splice(idx, 1) }
 
-function openCreateDialog() {
+/** 供应商选择变化时，自动拆分代码和名称 */
+function onSupplierChange(idx, val) {
+  if (!val) {
+    createForm.items[idx].supplierCode = ''
+    createForm.items[idx].supplierName = ''
+    return
+  }
+  const parts = val.split('::')
+  createForm.items[idx].supplierCode = parts[0] || ''
+  createForm.items[idx].supplierName = parts[1] || ''
+}
+
+async function openCreateDialog() {
   createForm.items = [newItem()]
   createVisible.value = true
+  // 加载下拉选项
+  loadSuppliers()
+  loadWarehouseAreas()
+}
+
+async function loadSuppliers() {
+  try {
+    const { data } = await getSuppliersApi()
+    supplierOptions.value = data || []
+  } catch { supplierOptions.value = [] }
+}
+
+async function loadWarehouseAreas() {
+  try {
+    const { data } = await getWarehouseAreasApi()
+    warehouseAreaOptions.value = data || []
+  } catch { warehouseAreaOptions.value = [] }
 }
 
 async function handleCreate() {
