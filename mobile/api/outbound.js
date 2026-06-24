@@ -8,10 +8,19 @@ export function getOutboundScanLabel(kanbanNo) {
   })
 }
 
-/** 扫码执行出库 */
+/** 扫码执行出库（带单出库，需 outboundOrderId） */
 export function issueByScan(payload) {
   return request({
     url: '/api/outbound/scan/issue',
+    method: 'POST',
+    data: payload
+  })
+}
+
+/** 不带单出库（移动端扫码出库，自动创建出库单） */
+export function orderlessIssue(payload) {
+  return request({
+    url: '/api/outbound/scan/orderless-issue',
     method: 'POST',
     data: payload
   })

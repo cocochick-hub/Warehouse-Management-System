@@ -49,7 +49,7 @@ import { NavBar, Button, Tag } from 'vant'
 import ScanInput from '@/components/ScanInput.vue'
 import MaterialCard from '@/components/MaterialCard.vue'
 import FifoAlert from '@/components/FifoAlert.vue'
-import { getOutboundScanLabel, issueByScan } from '@/api/outbound'
+import { getOutboundScanLabel, issueByScan, orderlessIssue } from '@/api/outbound'
 
 const scanInputRef = ref(null)
 const label = ref(null)
@@ -93,15 +93,28 @@ async function onConfirm() {
   showFifo.value = false
   confirming.value = true
   try {
-    await issueByScan({
-      kanbanNo: label.value.kanbanNo,
-      issueQty: label.value.availableQty,
-      outboundOrderId: outboundOrderId.value || undefined
-    })
+    if (outboundOrderId.value) {
+      // 带单出库：走 issue 接口
+      await issueByScan({
+        kanbanNo: label.value.kanbanNo,
+        issueQty: label.value.availableQty,
+        outboundOrderId: outboundOrderId.value
+      })
+    } else {
+      // 不带单出库：走 orderless-issue 接口
+      await orderlessIssue({
+        materialCode: label.value.materialCode,
+        materialName: label.value.materialName,
+        supplierCode: label.value.supplierCode,
+        supplierName: label.value.supplierName,
+        issueQty: label.value.availableQty,
+        warehouseArea: label.value.warehouseArea
+      })
+    }
     uni.showToast({ title: '出库成功', icon: 'success' })
     onReset()
   } catch {
-    // 错误已由拦截器处理
+    // 错误已由请求拦截器处理
   } finally {
     confirming.value = false
   }

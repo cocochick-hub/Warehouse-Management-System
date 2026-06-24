@@ -31,8 +31,10 @@ const searchDocNo = ref('')
 
 async function fetchOrders(docNo) {
   try {
-    const res = await getOutboundOrders({ status: '待出库,部分完成', docNo: docNo || undefined })
-    orders.value = res.data?.records || []
+    const res = await getOutboundOrders({ docNo: docNo || undefined })
+    orders.value = (res.data?.records || []).filter(
+      o => o.status === '待出库' || o.status === '部分完成'
+    )
   } catch {
     orders.value = []
   }

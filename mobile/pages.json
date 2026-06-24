@@ -2,7 +2,7 @@
   "easycom": {
     "autoscan": true,
     "custom": {
-      "^van-(.*)": "vant/es/van-$1/index.mjs"
+      "^van-(.*)": "vant/es/$1/index.mjs"
     }
   },
   "pages": [
@@ -42,6 +42,12 @@
       "path": "pages/return/index",
       "style": {
         "navigationBarTitleText": "退库"
+      }
+    },
+    {
+      "path": "pages/settings/index",
+      "style": {
+        "navigationBarTitleText": "设置"
       }
     }
   ],

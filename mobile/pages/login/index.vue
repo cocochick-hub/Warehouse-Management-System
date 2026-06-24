@@ -5,35 +5,33 @@
       <text class="login-subtitle">手机端</text>
     </view>
 
-    <van-form>
-      <van-cell-group inset>
-        <van-field
+    <view class="login-form">
+      <view class="input-group">
+        <text class="input-label">用户名</text>
+        <input
           v-model="form.username"
-          name="username"
-          label="用户名"
+          class="input-field"
           placeholder="请输入用户名"
         />
-        <van-field
+      </view>
+      <view class="input-group">
+        <text class="input-label">密码</text>
+        <input
           v-model="form.password"
-          name="password"
-          label="密码"
+          class="input-field"
           type="password"
           placeholder="请输入密码"
         />
-      </van-cell-group>
-
-      <view style="margin: 16px">
-        <van-button round block type="primary" :loading="loading" @click="onLogin">
-          登录
-        </van-button>
       </view>
-    </van-form>
+      <button class="login-btn" :disabled="loading" @tap="onLogin">
+        {{ loading ? '登录中...' : '登录' }}
+      </button>
+    </view>
   </view>
 </template>
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { Button, Form, Field, CellGroup } from 'vant'
 import { useUserStore } from '@/store/user'
 
 const userStore = useUserStore()
@@ -41,7 +39,10 @@ const loading = ref(false)
 const form = reactive({ username: '', password: '' })
 
 async function onLogin() {
-  if (!form.username || !form.password) return
+  if (!form.username || !form.password) {
+    uni.showToast({ title: '请输入用户名和密码', icon: 'none' })
+    return
+  }
   loading.value = true
   try {
     await userStore.login(form.username, form.password)
@@ -69,4 +70,39 @@ async function onLogin() {
 }
 .login-title { font-size: 28px; color: #fff; font-weight: bold; }
 .login-subtitle { font-size: 14px; color: rgba(255,255,255,0.8); margin-top: 8px; }
+.login-form {
+  background: #fff;
+  border-radius: 8px;
+  padding: 16px;
+}
+.input-group {
+  padding: 12px 0;
+  border-bottom: 1px solid #ebedf0;
+}
+.input-label {
+  font-size: 14px;
+  color: #323233;
+  display: block;
+  margin-bottom: 6px;
+}
+.input-field {
+  width: 100%;
+  font-size: 16px;
+  padding: 8px 0;
+  border: none;
+  outline: none;
+}
+.login-btn {
+  width: 100%;
+  margin-top: 16px;
+  padding: 12px;
+  background: #1989fa;
+  color: #fff;
+  border: none;
+  border-radius: 24px;
+  font-size: 16px;
+}
+.login-btn[disabled] {
+  opacity: 0.6;
+}
 </style>
