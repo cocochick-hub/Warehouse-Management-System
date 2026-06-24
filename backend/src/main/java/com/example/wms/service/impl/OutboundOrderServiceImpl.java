@@ -27,6 +27,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
     private static final String STATUS_PENDING = "待出库";
     private static final String STATUS_PARTIAL = "部分完成";
     private static final String STATUS_COMPLETED = "已完成";
+    private static final String STATUS_RETURNED = "已退库";
     private static final String LABEL_STATUS_RECEIVED = "已入库";
     private static final DateTimeFormatter DOC_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final AtomicInteger DOC_NO_SEQUENCE = new AtomicInteger(0);
@@ -782,5 +783,135 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
     private String normalizeOperator(String operator) {
         return trimToNull(operator) == null ? "system" : operator.trim();
+    }
+
+    @Override
+    public OutboundReturnLabelResponse getReturnLabel(String kanbanNo) {
+        InboundKanbanLabel label = findKanbanLabel(kanbanNo);
+
+        // 查找该看板对应的入库明细
+        InboundOrderDetail inboundDetail = inboundOrderDetailRepository
+                .findById(label.getInboundOrderDetailId())
+                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+
+        // 查找该入库明细对应的所有出库历史（按 sourceDetailId 关联）
+        List<OutboundHistory> histories = outboundHistoryRepository
+                .findBySourceDetailId(inboundDetail.getId());
+
+        if (histories.isEmpty()) {
+            return new OutboundReturnLabelResponse(
+                    kanbanNo, label.getMaterialCode(), label.getMaterialName(),
+                    label.getSupplierName(), null, null, null, label.getWarehouseArea(),
+                    false, "该看板对应的物料未被出库过");
+        }
+
+        // 取最近一条出库记录（按时间倒序第一条）
+        OutboundHistory latestHistory = histories.stream()
+                .filter(h -> h.getCreatedAt() != null)
+                .max((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
+                .orElse(histories.get(0));
+
+        // 检查是否已退库
+        if (STATUS_RETURNED.equals(latestHistory.getStatus())) {
+            return new OutboundReturnLabelResponse(
+                    kanbanNo, label.getMaterialCode(), label.getMaterialName(),
+                    label.getSupplierName(), latestHistory.getDocNo(),
+                    latestHistory.getIssueQty(),
+                    latestHistory.getCreatedAt() != null ? latestHistory.getCreatedAt().toString() : null,
+                    label.getWarehouseArea(),
+                    false, "该看板已退库，无法重复退库");
+        }
+
+        return new OutboundReturnLabelResponse(
+                kanbanNo, label.getMaterialCode(), label.getMaterialName(),
+                label.getSupplierName(), latestHistory.getDocNo(),
+                latestHistory.getIssueQty(),
+                latestHistory.getCreatedAt() != null ? latestHistory.getCreatedAt().toString() : null,
+                label.getWarehouseArea(),
+                true, null);
+    }
+
+    @Override
+    @Transactional
+    public OutboundReturnResponse returnByScan(OutboundReturnRequest request, String operator) {
+        InboundKanbanLabel label = findKanbanLabel(request.getKanbanNo());
+
+        InboundOrderDetail inboundDetail = inboundOrderDetailRepository
+                .findById(label.getInboundOrderDetailId())
+                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+
+        List<OutboundHistory> histories = outboundHistoryRepository
+                .findBySourceDetailId(inboundDetail.getId());
+
+        if (histories.isEmpty()) {
+            throw new IllegalStateException("该看板对应的物料未被出库过");
+        }
+
+        OutboundHistory latestHistory = histories.stream()
+                .filter(h -> h.getCreatedAt() != null)
+                .max((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
+                .orElse(histories.get(0));
+
+        if (STATUS_RETURNED.equals(latestHistory.getStatus())) {
+            throw new IllegalStateException("该看板已退库，无法重复退库");
+        }
+
+        int returnQty = safeInt(latestHistory.getIssueQty());
+
+        // 1. 库存回增
+        InventoryStock stock = inventoryStockRepository
+                .findByMaterialCodeAndSupplier(label.getMaterialCode(), label.getSupplierName())
+                .orElse(null);
+
+        if (stock == null) {
+            stock = new InventoryStock();
+            stock.setMaterialCode(label.getMaterialCode());
+            stock.setMaterialName(label.getMaterialName());
+            stock.setSupplier(label.getSupplierName());
+            stock.setOnHandQty(returnQty);
+            stock.setLastInboundDocNo(latestHistory.getDocNo());
+            stock.setLastInboundAt(LocalDateTime.now());
+            stock.setWarehouseArea(label.getWarehouseArea());
+            stock.setTransferStatus("不转包");
+            stock.setCreatedBy(normalizeOperator(operator));
+            stock.setUpdatedBy(normalizeOperator(operator));
+        } else {
+            stock.setOnHandQty(safeInt(stock.getOnHandQty()) + returnQty);
+            stock.setUpdatedBy(normalizeOperator(operator));
+            stock.setUpdatedAt(LocalDateTime.now());
+        }
+        inventoryStockRepository.save(stock);
+
+        // 2. 出库历史标记已退库
+        latestHistory.setStatus(STATUS_RETURNED);
+        outboundHistoryRepository.save(latestHistory);
+
+        // 3. 检查出库单是否全部退库
+        OutboundOrder order = outboundOrderRepository.findById(latestHistory.getOutboundOrderId()).orElse(null);
+        if (order != null) {
+            List<OutboundOrderDetail> orderDetails = outboundOrderDetailRepository
+                    .findByOutboundOrderIdOrderByLineNoAsc(order.getId());
+            boolean allReturned = true;
+            for (OutboundOrderDetail detail : orderDetails) {
+                List<OutboundHistory> detailHistories = outboundHistoryRepository
+                        .findBySourceDetailId(detail.getId());
+                boolean thisLineAllReturned = detailHistories.stream()
+                        .allMatch(h -> STATUS_RETURNED.equals(h.getStatus()));
+                if (!thisLineAllReturned) {
+                    allReturned = false;
+                    break;
+                }
+            }
+            if (allReturned) {
+                order.setStatus(STATUS_RETURNED);
+                outboundOrderRepository.save(order);
+            }
+        }
+
+        return new OutboundReturnResponse(
+                latestHistory.getDocNo(),
+                label.getMaterialCode(),
+                returnQty,
+                safeInt(stock.getOnHandQty()));
     }
 }
