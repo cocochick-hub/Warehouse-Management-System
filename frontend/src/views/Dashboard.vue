@@ -77,7 +77,9 @@
             </el-table-column>
             <el-table-column prop="date" label="日期" width="110" />
             <el-table-column label="操作" width="90" fixed="right">
-              <el-button type="primary" link size="small" @click="handleAction(row)">处理</el-button>
+              <template #default="{ row }">
+                <el-button type="primary" link size="small" @click="handleAction(row)">处理</el-button>
+              </template>
             </el-table-column>
           </el-table>
         </el-card>
@@ -87,7 +89,7 @@
           <template #header>
             <div class="card-header">
               <span>库存健康度</span>
-              <el-button text type="primary" @click="$router.push('/inventory/report')">详情</el-button>
+              <el-button text type="primary" @click="$router.push('/alert/threshold')">详情</el-button>
             </div>
           </template>
           <div class="health-section">

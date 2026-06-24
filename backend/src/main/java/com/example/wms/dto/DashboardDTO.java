@@ -16,4 +16,10 @@ public class DashboardDTO {
     private int lowStockAlert;
     private int totalMaterials;
     private List<PendingTaskDTO> pendingTasks;
+
+    // 库存健康度（从 alert_threshold 计算）
+    private int healthPercent;
+    private int normalCount;
+    private int lowAlertCount;
+    private int highAlertCount;
 }
