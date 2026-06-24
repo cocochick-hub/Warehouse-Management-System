@@ -151,6 +151,12 @@ const routes = [
         name: 'AlertThreshold',
         component: () => import('@/views/alert/Threshold.vue'),
         meta: { title: '高低储预警' }
+      },
+      {
+        path: 'ai/chat',
+        name: 'AiChat',
+        component: () => import('@/views/ai/Chat.vue'),
+        meta: { title: 'AI 助手' }
       }
     ]
   },
