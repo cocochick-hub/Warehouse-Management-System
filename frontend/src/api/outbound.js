@@ -53,3 +53,18 @@ export function issueByScan(data) {
     data
   })
 }
+
+export function getReturnLabel(kanbanNo) {
+  return request({
+    url: `/outbound/return/labels/${encodeURIComponent(kanbanNo)}`,
+    method: 'get'
+  })
+}
+
+export function doReturn(data) {
+  return request({
+    url: '/outbound/return',
+    method: 'post',
+    data
+  })
+}

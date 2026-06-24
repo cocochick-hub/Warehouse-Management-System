@@ -107,6 +107,12 @@ const routes = [
             name: 'OutboundHistory',
             component: () => import('@/views/outbound/History.vue'),
             meta: { title: '出库历史' }
+          },
+          {
+            path: 'return-scan',
+            name: 'OutboundReturnScan',
+            component: () => import('@/views/outbound/ReturnScan.vue'),
+            meta: { title: '扫码退库' }
           }
         ]
       },
