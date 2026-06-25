@@ -5,10 +5,12 @@ import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.entity.InboundOrder;
 import com.example.wms.entity.InboundOrderDetail;
 import com.example.wms.entity.InventoryStock;
+import com.example.wms.entity.OutboundHistory;
 import com.example.wms.repository.InboundKanbanLabelRepository;
 import com.example.wms.repository.InboundOrderDetailRepository;
 import com.example.wms.repository.InboundOrderRepository;
 import com.example.wms.repository.InventoryStockRepository;
+import com.example.wms.repository.OutboundHistoryRepository;
 import com.example.wms.service.InboundOrderService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -47,15 +49,18 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     private final InboundOrderDetailRepository inboundOrderDetailRepository;
     private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
     private final InventoryStockRepository inventoryStockRepository;
+    private final OutboundHistoryRepository outboundHistoryRepository;
 
     public InboundOrderServiceImpl(InboundOrderRepository inboundOrderRepository,
                                    InboundOrderDetailRepository inboundOrderDetailRepository,
                                    InboundKanbanLabelRepository inboundKanbanLabelRepository,
-                                   InventoryStockRepository inventoryStockRepository) {
+                                   InventoryStockRepository inventoryStockRepository,
+                                   OutboundHistoryRepository outboundHistoryRepository) {
         this.inboundOrderRepository = inboundOrderRepository;
         this.inboundOrderDetailRepository = inboundOrderDetailRepository;
         this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
         this.inventoryStockRepository = inventoryStockRepository;
+        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     @Override
@@ -791,6 +796,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     }
 
     private InboundKanbanLabelDTO toKanbanLabelDTO(InboundKanbanLabel label) {
+        int availableQty = calculateAvailableQty(label);
         return new InboundKanbanLabelDTO(
                 label.getId(),
                 label.getInboundOrderId(),
@@ -814,8 +820,20 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 label.getReceivedBy(),
                 label.getSealed(),
                 label.getSealedAt(),
-                label.getSealedBy()
+                label.getSealedBy(),
+                availableQty
         );
+    }
+
+    private int calculateAvailableQty(InboundKanbanLabel label) {
+        List<OutboundHistory> consumed = outboundHistoryRepository
+                .findBySourceDetailId(label.getInboundOrderDetailId());
+        int consumedQty = consumed.stream()
+                .filter(h -> !"已退库".equals(h.getStatus()))
+                .mapToInt(h -> safeInt(h.getIssueQty()))
+                .sum();
+        int labelQty = safeInt(label.getLabelQty());
+        return Math.max(labelQty - consumedQty, 0);
     }
 
     private int safeInt(Integer value) {
