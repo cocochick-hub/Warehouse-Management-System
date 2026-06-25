@@ -7,6 +7,15 @@
 
     <view class="login-form">
       <view class="input-group">
+        <text class="input-label">服务器地址</text>
+        <input
+          v-model="serverUrl"
+          class="input-field"
+          placeholder="http://192.168.1.100:8080"
+          @blur="onServerUrlBlur"
+        />
+      </view>
+      <view class="input-group">
         <text class="input-label">用户名</text>
         <input
           v-model="form.username"
@@ -33,16 +42,27 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useUserStore } from '@/store/user'
+import { updateBaseUrl, getCurrentBaseUrl } from '@/api/request'
 
 const userStore = useUserStore()
 const loading = ref(false)
 const form = reactive({ username: '', password: '' })
+const serverUrl = ref(getCurrentBaseUrl())
+
+function onServerUrlBlur() {
+  const url = serverUrl.value.trim()
+  if (url) {
+    updateBaseUrl(url)
+  }
+}
 
 async function onLogin() {
   if (!form.username || !form.password) {
     uni.showToast({ title: '请输入用户名和密码', icon: 'none' })
     return
   }
+  // 登录前先保存服务器地址（用户可能只改了地址但未触发 blur）
+  onServerUrlBlur()
   loading.value = true
   try {
     await userStore.login(form.username, form.password)

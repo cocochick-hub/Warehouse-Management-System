@@ -22,21 +22,17 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref } from 'vue'
 import { NavBar, Field, CellGroup, Button } from 'vant'
 import { useUserStore } from '@/store/user'
-import { updateBaseUrl } from '@/api/request'
+import { updateBaseUrl, getCurrentBaseUrl } from '@/api/request'
 
 const userStore = useUserStore()
-const serverUrl = ref('')
-
-onMounted(() => {
-  serverUrl.value = uni.getStorageSync('wms_base_url') || 'http://10.196.86.149:8080'
-})
+const serverUrl = ref(getCurrentBaseUrl())
 
 function onSave() {
   updateBaseUrl(serverUrl.value.trim())
-  uni.showToast({ title: '保存成功，重启后生效', icon: 'success' })
+  uni.showToast({ title: '保存成功', icon: 'success' })
 }
 
 function onLogout() {

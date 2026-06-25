@@ -1,7 +1,11 @@
 import { getToken, clearAuth } from '@/utils/auth'
 
-const STORED_BASE_URL = uni.getStorageSync('wms_base_url')
-const BASE_URL = STORED_BASE_URL || 'http://10.196.86.149:8080'
+const DEFAULT_BASE_URL = 'http://10.196.86.149:8080'
+
+/** 动态获取 baseUrl，每次请求实时从 storage 读取，修改后无需重启即可生效 */
+function getBaseUrl() {
+  return uni.getStorageSync('wms_base_url') || DEFAULT_BASE_URL
+}
 
 /**
  * 发起请求，自动注入 JWT、统一处理错误
@@ -13,7 +17,7 @@ export function request(options) {
 
   return new Promise((resolve, reject) => {
     uni.request({
-      url: BASE_URL + url,
+      url: getBaseUrl() + url,
       method,
       data,
       header: {
@@ -44,6 +48,11 @@ export function request(options) {
 
 export function updateBaseUrl(url) {
   uni.setStorageSync('wms_base_url', url)
+}
+
+/** 获取当前生效的服务器地址（供页面初始化显示） */
+export function getCurrentBaseUrl() {
+  return getBaseUrl()
 }
 
 export default request
