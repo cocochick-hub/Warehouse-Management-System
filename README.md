@@ -106,9 +106,24 @@
 | **高低储标准维护** | 物料号、低储天数、高储天数 | 为每种物料分别设定低储天数（低于该天数触发低储预警）和高储天数（高于该天数触发高储预警） |
 | **预警展示** | 物料号、当前库存、低储天数、高储天数、预警标识 | 在库存报表中以颜色/图标区分正常、低储、高储三种状态，支持快速筛选异常物料 |
 
-### 7. AI技术融合（待定）
+### 7. AI 仓库管理员
 
-> 可选加分项，功能设计待后续补充。
+基于 DeepSeek 大语言模型的智能仓库管理助手，实现物料缺货预测、呆滞报废预警和自然语言交互。
+
+| 功能 | 说明 |
+| :--- | :--- |
+| **缺货预测** | 基于近 30 天出库消耗速率，自动计算每种物料的日均消耗量和可支撑天数，按 HIGH / MEDIUM / LOW 三级风险预警 |
+| **呆滞报废预警** | 识别长期无出库记录的物料，按呆滞天数（30/60/90 天）分级告警，生成处置建议 |
+| **AI 对话助手** | 支持自然语言提问，AI 通过 Function Calling 自动查询数据库（库存/出入库历史/预警记录），生成分析报告 |
+| **定时预警** | 后台每小时自动执行全量分析，结果持久化到 `ai_alert` 表，Dashboard 卡片实时展示 |
+| **多入口访问** | Dashboard 预警卡片 + 全局悬浮按钮 + 独立 AI 对话页面，三入口覆盖不同使用场景 |
+
+**AI 对话入口：**
+- **Dashboard 预警卡片** — 仪表盘中部展示缺货/呆滞风险 Top 5，点击跳转 AI 分析
+- **全局悬浮按钮** — 右下角蓝色图标，任意页面呼出迷你聊天面板
+- **独立对话页面** — 侧边栏「AI 助手」菜单，全屏对话 + Markdown 渲染
+
+> 📖 详细文档见 [AI仓库管理员说明文档.md](AI仓库管理员说明文档.md)
 
 ### 8. 扩展功能（待定）
 
@@ -132,6 +147,7 @@
 | 7 | 出库单明细 | id、出库单id、出库单号、零件号、包装容量、计划出库数量、实际出库数量 | 出库单行 |
 | 8 | 条码表（可选） | id、物料号、供应商、条码号、出入库状态 | 条码管理 |
 | 9 | 供应商信息 | id、供应商代码、供应商名称 | 供应商主数据 |
+| 10 | **ai_alert** | id、物料号、预警类型、风险等级、日均消耗、可支撑天数、呆滞天数、建议 | AI 预警记录 |
 
 ## 核心业务流程
 
@@ -188,6 +204,16 @@
 }
 ```
 
+### AI 模块
+
+| 方法 | 路径 | 说明 | 是否需要Token |
+| :--- | :--- | :--- | :--- |
+| POST | /api/ai/chat | AI 对话（透传 DeepSeek，支持 Function Calling） | 是 |
+| GET | /api/ai/alerts/latest | 获取最新预警结果（支持 ?alertType=SHORTAGE\|DEAD_STOCK） | 是 |
+| GET | /api/ai/data/stocks | 全量库存快照（供 AI Function Calling） | 是 |
+| GET | /api/ai/data/outbound-history | 出库历史（支持 ?materialCode= 筛选） | 是 |
+| GET | /api/ai/data/inbound-history | 入库历史（支持 ?materialCode= 筛选） | 是 |
+
 **请求头格式（需Token的接口）：**
 ```
 Authorization: Bearer eyJhbGciOiJIUzI1NiJ...
@@ -212,20 +238,48 @@ warehouse-management-system/
 │           │       │   └── UserRepository.java
 │           │       ├── entity/         # 实体类
 │           │       │   ├── BaseEntity.java
-│           │       │   └── SysUser.java
+│           │       │   ├── SysUser.java
+│           │       │   └── AiAlert.java              # AI 预警记录
 │           │       ├── dto/            # 数据传输对象
 │           │       │   ├── ApiResult.java
 │           │       │   ├── LoginRequest.java
 │           │       │   ├── LoginResponse.java
-│           │       │   └── UserInfoDTO.java
+│           │       │   ├── UserInfoDTO.java
+│           │       │   └── DashboardDTO.java
 │           │       ├── config/         # 配置类
 │           │       │   ├── SecurityConfig.java
 │           │       │   ├── JwtUtil.java
 │           │       │   ├── JwtAuthFilter.java
-│           │       │   └── CorsConfig.java
+│           │       │   ├── CorsConfig.java
+│           │       │   ├── GlobalExceptionHandler.java
+│           │       │   └── AiScheduler.java          # AI 定时预警调度
+│           │       ├── controller/     # REST API控制器
+│           │       │   ├── AuthController.java
+│           │       │   ├── BasicDataController.java
+│           │       │   ├── DashboardController.java
+│           │       │   ├── InboundOrderController.java
+│           │       │   ├── InboundScanController.java
+│           │       │   ├── InventoryController.java
+│           │       │   ├── OutboundOrderController.java
+│           │       │   ├── OutboundScanController.java
+│           │       │   └── AiChatController.java     # AI 对话代理 + 数据API
+│           │       ├── service/        # 业务逻辑层
+│           │       │   ├── UserService.java
+│           │       │   ├── BasicDataService.java
+│           │       │   ├── DashboardService.java
+│           │       │   ├── InboundOrderService.java
+│           │       │   ├── InventoryService.java
+│           │       │   ├── OutboundOrderService.java
+│           │       │   ├── AiAlertService.java       # AI 预警计算引擎
+│           │       │   └── impl/
+│           │       ├── repository/     # 数据访问层
+│           │       │   ├── UserRepository.java
+│           │       │   ├── AiAlertRepository.java    # AI 预警仓库
+│           │       │   └── ...（共 11 个）
 │           │       └── WmsApplication.java
 │           └── resources/
 │               ├── application.yml     # 应用配置
+│               ├── application-local.yml  # 本地配置
 │               └── schema.sql          # 数据库初始化脚本
 └── frontend/                   # Vue 3前端项目
     ├── index.html
@@ -235,40 +289,58 @@ warehouse-management-system/
         ├── main.js                     # 应用入口
         ├── App.vue                     # 根组件（路由出口）
         ├── layout/                     # 布局组件
-        │   ├── Layout.vue              # 主布局（侧边栏 + 顶栏 + 内容区）
-        │   ├── Sidebar.vue             # 侧边导航菜单（按角色动态渲染）
+        │   ├── Layout.vue              # 主布局（侧边栏 + 顶栏 + 内容区 + AI悬浮按钮）
+        │   ├── Sidebar.vue             # 侧边导航菜单（含「AI 助手」菜单项）
         │   └── Navbar.vue              # 顶部导航栏（面包屑/用户下拉/预警）
         ├── views/                      # 页面视图（按模块划分子目录）
         │   ├── Login.vue              # 登录页
-        │   ├── Dashboard.vue          # 仪表盘（统计卡片/待办/库存健康度）
+        │   ├── Dashboard.vue          # 仪表盘（统计卡片/待办/AI预警卡片/快捷操作）
         │   ├── basic/                 # 基础信息管理
         │   │   ├── Material.vue       # 物料管理
         │   │   ├── Packaging.vue      # 包装管理
         │   │   └── Supplier.vue       # 供应商管理
         │   ├── inbound/               # 入库管理
         │   │   ├── Order.vue          # 入库单管理
-        │   │   └── Manual.vue         # 手工入库
+        │   │   ├── Manual.vue         # 手工入库
+        │   │   ├── Scan.vue           # 扫码入库
+        │   │   └── History.vue        # 入库历史
         │   ├── outbound/              # 出库管理
         │   │   ├── Order.vue          # 出库单管理
-        │   │   └── Manual.vue         # 手工出库
+        │   │   ├── Manual.vue         # 手工出库
+        │   │   ├── Scan.vue           # 扫码出库
+        │   │   └── History.vue        # 出库历史
         │   ├── inventory/             # 库存管理
         │   │   ├── Report.vue         # 库存报表
         │   │   └── ImportReq.vue      # 需求导入
         │   ├── demand/                # 物料需求
         │   │   └── List.vue           # 物料需求 / 出库记录
-        │   └── alert/                 # 高低储预警
-        │       └── Threshold.vue      # 预警标准维护
+        │   ├── alert/                 # 高低储预警
+        │   │   └── Threshold.vue      # 预警标准维护
+        │   └── ai/                    # AI 助手
+        │       └── Chat.vue           # AI 对话全屏页面
         ├── components/                 # 公共组件
-        │   └── PageContainer.vue       # 通用页面容器
+        │   ├── PageContainer.vue       # 通用页面容器
+        │   ├── inbound/                # 入库子组件
+        │   ├── outbound/               # 出库子组件
+        │   └── ai/                     # AI 子组件
+        │       ├── AiAlertCards.vue    # Dashboard AI 预警卡片
+        │       └── AiFloatingButton.vue # 全局悬浮 AI 聊天按钮
         ├── api/                        # API接口封装
         │   ├── request.js              # Axios实例（拦截器/Token/错误处理）
-        │   └── auth.js                 # 认证相关API
+        │   ├── auth.js                 # 认证相关
+        │   ├── basic.js                # 基础数据
+        │   ├── dashboard.js            # 仪表盘
+        │   ├── inbound.js              # 入库
+        │   ├── outbound.js             # 出库
+        │   ├── inventory.js            # 库存
+        │   └── ai.js                   # AI 对话 + 预警
         ├── store/                      # Pinia状态管理
         │   └── user.js                 # 用户认证状态
         ├── router/                     # Vue Router路由配置
-        │   └── index.js                # 路由表 + 导航守卫
+        │   └── index.js                # 路由表 + 导航守卫（含 /ai/chat）
         └── utils/                      # 工具函数
             └── auth.js                 # Token/localStorage存取
+```
 
 ## 预置账号
 
@@ -289,7 +361,6 @@ warehouse-management-system/
    ```bash
    cd backend
    mvn spring-boot:run
-   ```
 5. **验证服务：** 访问 `http://localhost:8080/api/auth/login`，POST 方式测试登录
 
 ### 前端环境
@@ -301,10 +372,11 @@ warehouse-management-system/
 
 ## 特色功能
 
+- **AI 仓库管理员** ：基于 DeepSeek 大模型，缺货预测 + 呆滞报废预警 + 自然语言对话，三大入口（Dashboard 卡片 / 悬浮按钮 / 独立页面），Function Calling 自动查询数据库
+- **定时智能预警**：每小时自动分析全量库存，三级风险分级（HIGH/MEDIUM/LOW），生成处置建议
 - **BI数据分析**：库存健康度分析、有效期情况统计
-- **AI智能预警**：通过大模型分析库存风险，主动推送关注物料
-- **条码化管理**：支持手持扫码，提升作业效率
-- **全流程状态跟踪**：入库单状态（未完成/部分完成/已完成）精确追踪
+- **条码化管理**：支持手持扫码 + 看板二维码标签，提升作业效率
+- **全流程状态跟踪**：入库单/出库单状态（未完成/部分完成/已完成）精确追踪，FIFO 先进先出
 - **JWT无状态认证**：基于Token的认证方案，无需Session，适合前后端分离与移动端扩展
 
 ## 开发要求
@@ -313,12 +385,12 @@ warehouse-management-system/
 - **后端**：使用 Spring Boot 构建 RESTful API，实现业务逻辑和数据校验
 - **数据库**：使用 MySQL 设计关系型数据结构，确保数据一致性
 - **认证**：所有非登录接口需在请求头携带 JWT Token，后端通过 Spring Security + Filter 统一鉴权
-- **扩展点**：预留 AI 接口和手持设备接入能力
+- **AI 大模型**：集成 DeepSeek API，通过 Function Calling 实现数据库自动查询与智能分析，API Key 存放在 `application-local.yml`（已加入 .gitignore）
 
 ## 备注
 
 - 所有数据表需包含审计字段（创建人、更新人、创建时间、更新时间）
-- 条码表、AI功能、手持APP等为可选扩展功能，可作为加分项实现
+- AI 仓库管理员功能已实现（基于 DeepSeek），API Key 配置见 `application.yml`，详细文档见 [AI仓库管理员说明文档.md](AI仓库管理员说明文档.md)
 - 系统需支持入库、库存监控、出库管理三大核心菜单页面的熟练开发
 - 首次启动会自动执行 schema.sql 创建表结构并初始化三个预置账号
 - 如果启动时遇到 MySQL 时区问题，可在连接 URL 后添加 `&serverTimezone=Asia/Shanghai`
