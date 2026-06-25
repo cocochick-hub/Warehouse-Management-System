@@ -88,6 +88,11 @@
       <el-table v-loading="labelLoading" :data="labelData" stripe border style="width: 100%">
         <el-table-column type="index" label="序号" width="60" />
         <el-table-column prop="kanbanNo" label="看板号" min-width="200" />
+        <el-table-column label="二维码" width="100" align="center">
+          <template #default="{ row }">
+            <img v-if="qrMap[row.kanbanNo]" :src="qrMap[row.kanbanNo]" alt="二维码" style="width: 80px; height: 80px;" />
+          </template>
+        </el-table-column>
         <el-table-column prop="docNo" label="入库单号" width="180" />
         <el-table-column prop="labelQty" label="看板数量" width="100" />
         <el-table-column prop="availableQty" label="可用数量" width="100">
@@ -131,7 +136,8 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
+import QRCode from 'qrcode'
 import PageContainer from '@/components/PageContainer.vue'
 import { getInventoryStocksApi, getInventoryLabelsApi } from '@/api/inventory'
 import { getWarehouseAreasApi } from '@/api/basic'
@@ -152,6 +158,7 @@ const labelDialogVisible = ref(false)
 const labelLoading = ref(false)
 const labelMaterialCode = ref('')
 const labelData = ref([])
+const qrMap = ref({})
 const pagination = reactive({
   page: 1,
   size: 10,
@@ -211,6 +218,23 @@ async function handleViewLabels(row) {
     labelLoading.value = false
   }
 }
+
+// 监听看板数据变化，生成二维码
+watch(labelData, async (labels) => {
+  const nextMap = {}
+  for (const label of labels || []) {
+    try {
+      nextMap[label.kanbanNo] = await QRCode.toDataURL(label.qrPayload || label.kanbanNo, {
+        width: 160,
+        margin: 1,
+        errorCorrectionLevel: 'M'
+      })
+    } catch {
+      // 二维码生成失败，跳过
+    }
+  }
+  qrMap.value = nextMap
+})
 
 function handleSearch() {
   pagination.page = 1

@@ -34,4 +34,5 @@ public class InboundKanbanLabelDTO {
     private Boolean sealed;
     private LocalDateTime sealedAt;
     private String sealedBy;
+    private Integer availableQty;
 }

@@ -129,7 +129,8 @@ public class InventoryServiceImpl implements InventoryService {
                 label.getReceivedBy(),
                 label.getSealed(),
                 label.getSealedAt(),
-                label.getSealedBy()
+                label.getSealedBy(),
+                availableQty
         );
     }
 
