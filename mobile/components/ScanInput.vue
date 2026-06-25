@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { Button, Icon } from 'vant'
 
 const props = defineProps({
@@ -54,6 +54,27 @@ function onScan() {
     }
   })
 }
+
+function triggerAutoScan() {
+  uni.scanCode({
+    onlyFromCamera: true,
+    success(res) {
+      const kanbanNo = parseKanbanNo(res.result)
+      inputValue.value = kanbanNo
+      emit('scan', kanbanNo)
+    },
+    fail() {
+      // 自动扫码失败不提示，用户可手动输入或点击扫码按钮
+    }
+  })
+}
+
+// 进入页面自动弹出扫码（延时等页面过渡动画完成）
+onMounted(() => {
+  setTimeout(() => {
+    triggerAutoScan()
+  }, 300)
+})
 
 defineExpose({
   clear() {
