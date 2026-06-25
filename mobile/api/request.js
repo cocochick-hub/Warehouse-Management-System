@@ -1,7 +1,7 @@
 import { getToken, clearAuth } from '@/utils/auth'
 
 const STORED_BASE_URL = uni.getStorageSync('wms_base_url')
-const BASE_URL = STORED_BASE_URL || 'http://192.168.1.216:8080'
+const BASE_URL = STORED_BASE_URL || 'http://10.196.86.149:8080'
 
 /**
  * 发起请求，自动注入 JWT、统一处理错误

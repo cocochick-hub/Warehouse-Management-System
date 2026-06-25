@@ -31,7 +31,7 @@ const userStore = useUserStore()
 const serverUrl = ref('')
 
 onMounted(() => {
-  serverUrl.value = uni.getStorageSync('wms_base_url') || 'http://192.168.1.100:8080'
+  serverUrl.value = uni.getStorageSync('wms_base_url') || 'http://10.196.86.149:8080'
 })
 
 function onSave() {

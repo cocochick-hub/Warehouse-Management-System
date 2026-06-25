@@ -33,3 +33,4 @@ logs/
 
 # Local scripts
 *.bat
+.run/WmsApplication.run.xml

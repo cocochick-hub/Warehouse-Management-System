@@ -29,6 +29,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
     private static final String STATUS_COMPLETED = "已完成";
     private static final String STATUS_RETURNED = "已退库";
     private static final String LABEL_STATUS_RECEIVED = "已入库";
+    private static final String TRANSFER_STATUS_ISSUED = "已出库";
     private static final DateTimeFormatter DOC_NO_FORMATTER = DateTimeFormatter.ofPattern("yyyyMMddHHmmssSSS");
     private static final AtomicInteger DOC_NO_SEQUENCE = new AtomicInteger(0);
 
@@ -299,6 +300,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         if (!LABEL_STATUS_RECEIVED.equals(label.getLabelStatus())) {
             throw new IllegalStateException("该看板尚未完成入库，无法出库");
         }
+        // 防止同一看板号重复出库
+        if (TRANSFER_STATUS_ISSUED.equals(label.getTransferStatus())) {
+            throw new IllegalStateException("该看板已出库，无法重复出库");
+        }
         if (Boolean.TRUE.equals(label.getSealed())) {
             throw new IllegalStateException("该看板已被封存，无法出库，请先解封");
         }
@@ -407,6 +412,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         order.setUpdatedBy(currentOperator);
         order.setUpdatedAt(now);
         outboundOrderRepository.save(order);
+
+        // 更新看板标签状态，防止重复出库
+        label.setTransferStatus(TRANSFER_STATUS_ISSUED);
+        inboundKanbanLabelRepository.save(label);
 
         details = outboundOrderDetailRepository.findByOutboundOrderIdOrderByLineNoAsc(order.getId());
         return new OutboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(details), toInventoryStockDTOs(details));
@@ -945,6 +954,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
         // 2.1 看板标签恢复为已入库（退库后同一看板可再次出库）
         label.setLabelStatus(LABEL_STATUS_RECEIVED);
+        label.setTransferStatus(null);
         inboundKanbanLabelRepository.save(label);
 
         // 3. 检查出库单是否全部退库
