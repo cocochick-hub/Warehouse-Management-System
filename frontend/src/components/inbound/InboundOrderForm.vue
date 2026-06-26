@@ -7,6 +7,36 @@
     @close="handleClose"
   >
     <el-form ref="formRef" :model="form" :rules="rules" label-width="110px">
+      <el-row :gutter="20">
+        <el-col :span="12">
+          <el-form-item label="供应商" prop="supplierCode" required>
+            <el-select
+              v-model="form.supplierCode"
+              placeholder="请先选择供应商"
+              filterable
+              clearable
+              style="width: 100%"
+              @change="handleSupplierChange"
+            >
+              <el-option
+                v-for="supplier in supplierOptions"
+                :key="supplier.supplierCode"
+                :label="`${supplier.supplierCode} / ${supplier.supplierName}`"
+                :value="supplier.supplierCode"
+              />
+            </el-select>
+          </el-form-item>
+        </el-col>
+        <el-col :span="12">
+          <el-form-item label="转包状态" prop="transferStatus">
+            <el-radio-group v-model="form.transferStatus">
+              <el-radio value="不转包">不转包</el-radio>
+              <el-radio value="转包">转包</el-radio>
+            </el-radio-group>
+          </el-form-item>
+        </el-col>
+      </el-row>
+
       <el-form-item label="备注" prop="remark">
         <el-input
           v-model="form.remark"
@@ -18,55 +48,43 @@
         />
       </el-form-item>
 
-      <el-form-item label="转包状态" prop="transferStatus">
-        <el-radio-group v-model="form.transferStatus">
-          <el-radio value="不转包">不转包</el-radio>
-          <el-radio value="转包">转包</el-radio>
-        </el-radio-group>
-      </el-form-item>
-
       <div class="section-head">
         <span>入库明细</span>
-        <el-button type="primary" link @click="addDetail">
-          <el-icon><Plus /></el-icon>新增明细
-        </el-button>
+        <div>
+          <el-button type="primary" link @click="addDetail">
+            <el-icon><Plus /></el-icon>新增明细
+          </el-button>
+          <el-button type="primary" link @click="triggerExcelUpload" :disabled="!form.supplierCode">
+            <el-icon><Upload /></el-icon>Excel导入
+          </el-button>
+        </div>
       </div>
+
+      <input
+        ref="fileInputRef"
+        type="file"
+        accept=".xlsx,.xls"
+        style="display: none"
+        @change="handleExcelUpload"
+      />
 
       <el-table :data="form.details" border class="detail-table">
         <el-table-column type="index" label="行号" width="60" />
-        <el-table-column label="供应商" min-width="180">
-          <template #default="{ row, $index }">
-            <el-select
-              v-model="row.supplierCode"
-              placeholder="选择供应商"
-              filterable
-              clearable
-              style="width: 100%"
-              :disabled="$index > 0 && form.details[0].supplierCode"
-              @change="(value) => handleRowSupplierChange(row, value, $index)"
-            >
-              <el-option
-                v-for="supplier in supplierOptions"
-                :key="supplier.supplierCode"
-                :label="supplier.supplierName"
-                :value="supplier.supplierCode"
-              />
-            </el-select>
-          </template>
-        </el-table-column>
-        <el-table-column label="物料选择" min-width="220">
+        <el-table-column label="物料号" min-width="200">
           <template #default="{ row }">
             <el-select
               v-model="row.materialCode"
-              placeholder="请选择物料"
+              placeholder="搜索并选择物料"
               filterable
               clearable
               style="width: 100%"
-              :disabled="!row.supplierCode"
+              :disabled="!form.supplierCode"
+              :filter-method="(query) => filterMaterialOptions(row, query)"
               @change="(value) => handleMaterialChange(row, value)"
+              @visible-change="(visible) => { if (visible && row.materialCode) row._filterText = '' }"
             >
               <el-option
-                v-for="material in row.materialOptions"
+                v-for="material in row._filteredOptions"
                 :key="material.materialNo"
                 :label="`${material.materialNo} / ${material.materialName}`"
                 :value="material.materialNo"
@@ -86,7 +104,7 @@
             </span>
           </template>
         </el-table-column>
-        <el-table-column label="计划数量" width="110">
+        <el-table-column label="计划数量" width="130">
           <template #default="{ row }">
             <el-input-number
               v-model="row.plannedQty"
@@ -129,7 +147,7 @@
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" :loading="submitting" @click="handleSubmit">创建</el-button>
+      <el-button type="primary" :loading="submitting" :disabled="!form.supplierCode" @click="handleSubmit">创建</el-button>
     </template>
   </el-dialog>
 </template>
@@ -138,6 +156,7 @@
 import { reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMaterialsApi, getSuppliersApi, getWarehouseAreasApi } from '@/api/basic'
+import * as XLSX from 'xlsx'
 
 const props = defineProps({
   visible: {
@@ -153,11 +172,15 @@ const props = defineProps({
 const emit = defineEmits(['update:visible', 'submit'])
 
 const formRef = ref()
+const fileInputRef = ref()
 const form = reactive(createDefaultForm())
 const supplierOptions = ref([])
 const warehouseAreaOptions = ref([])
+const allMaterials = ref([])
 
-const rules = {}
+const rules = {
+  supplierCode: [{ required: true, message: '请选择供应商', trigger: 'change' }]
+}
 
 watch(
   () => props.visible,
@@ -171,8 +194,6 @@ watch(
 
 function createDefaultDetail() {
   return {
-    supplierCode: '',
-    supplierName: '',
     materialCode: '',
     materialName: '',
     packageModel: '',
@@ -180,13 +201,16 @@ function createDefaultDetail() {
     plannedQty: 1,
     packageCount: 1,
     warehouseArea: '默认库区',
-    materialOptions: [],
-    remark: ''
+    remark: '',
+    _filterText: '',
+    _filteredOptions: []
   }
 }
 
 function createDefaultForm() {
   return {
+    supplierCode: '',
+    supplierName: '',
     remark: '',
     transferStatus: '不转包',
     details: [createDefaultDetail()]
@@ -195,20 +219,18 @@ function createDefaultForm() {
 
 function resetForm() {
   const next = createDefaultForm()
+  form.supplierCode = next.supplierCode
+  form.supplierName = next.supplierName
   form.remark = next.remark
   form.transferStatus = next.transferStatus
   form.details.splice(0, form.details.length, ...next.details)
+  allMaterials.value = []
   formRef.value?.clearValidate?.()
 }
 
 function addDetail() {
-  const previous = form.details[form.details.length - 1]
   const next = createDefaultDetail()
-  if (previous?.supplierCode) {
-    next.supplierCode = previous.supplierCode
-    next.supplierName = previous.supplierName
-    next.materialOptions = previous.materialOptions || []
-  }
+  next._filteredOptions = allMaterials.value
   form.details.push(next)
 }
 
@@ -226,42 +248,23 @@ function validateDetails() {
     return false
   }
 
-  // Single supplier check: all details must have the same supplier code
-  const supplierCodes = new Set()
   const materialKeys = new Set()
   for (const item of form.details) {
-    if (!item.supplierCode?.trim()) {
-      ElMessage.warning('请选择供应商')
-      return false
-    }
     if (!item.materialCode?.trim()) {
-      ElMessage.warning('请填写物料号')
-      return false
-    }
-    if (!item.materialName?.trim()) {
-      ElMessage.warning('请填写物料名称')
+      ElMessage.warning('请选择物料')
       return false
     }
     if (!item.plannedQty || item.plannedQty < 1) {
       ElMessage.warning('计划数量必须大于 0')
       return false
     }
-
-    supplierCodes.add(item.supplierCode.trim())
-
-    const key = `${item.supplierCode.trim()}::${item.materialCode.trim()}`
+    const key = `${form.supplierCode}::${item.materialCode.trim()}`
     if (materialKeys.has(key)) {
-      ElMessage.warning('同一张入库单中不允许重复选择同一供应商下的同一物料')
+      ElMessage.warning('同一张入库单中不允许重复选择同一物料')
       return false
     }
     materialKeys.add(key)
   }
-
-  if (supplierCodes.size > 1) {
-    ElMessage.warning('一张入库单只能包含同一个供应商的物料，请分批创建')
-    return false
-  }
-
   return true
 }
 
@@ -275,40 +278,38 @@ async function fetchWarehouseAreas() {
   warehouseAreaOptions.value = data || []
 }
 
-async function handleRowSupplierChange(row, supplierCode, index) {
+async function handleSupplierChange(supplierCode) {
   const selectedSupplier = supplierOptions.value.find((item) => item.supplierCode === supplierCode)
-  row.supplierName = selectedSupplier?.supplierName || ''
-  row.materialCode = ''
-  row.materialName = ''
-  row.packageModel = ''
-  row.packagingCapacity = 0
-  row.packageCount = 1
-  row.materialOptions = []
+  form.supplierName = selectedSupplier?.supplierName || ''
+
+  // Reset all details when supplier changes
+  const firstDetail = createDefaultDetail()
+  form.details.splice(0, form.details.length, firstDetail)
+
   if (!selectedSupplier) {
+    allMaterials.value = []
     return
   }
 
   const { data } = await getMaterialsApi({ supplierCode: selectedSupplier.supplierCode })
-  row.materialOptions = data || []
+  allMaterials.value = data || []
+  firstDetail._filteredOptions = allMaterials.value
+}
 
-  // For single-supplier enforcement: if first row's supplier changes, update all other rows
-  if (index === 0) {
-    for (let i = 1; i < form.details.length; i++) {
-      const otherRow = form.details[i]
-      otherRow.supplierCode = supplierCode
-      otherRow.supplierName = selectedSupplier.supplierName
-      otherRow.materialCode = ''
-      otherRow.materialName = ''
-      otherRow.packageModel = ''
-      otherRow.packagingCapacity = 0
-      otherRow.packageCount = 1
-      otherRow.materialOptions = data || []
-    }
+function filterMaterialOptions(row, query) {
+  row._filterText = query || ''
+  if (!query) {
+    row._filteredOptions = allMaterials.value
+  } else {
+    const lower = query.toLowerCase()
+    row._filteredOptions = allMaterials.value.filter(
+      (m) => m.materialNo.toLowerCase().includes(lower) || m.materialName.toLowerCase().includes(lower)
+    )
   }
 }
 
 function handleMaterialChange(row, materialNo) {
-  const material = (row.materialOptions || []).find((item) => item.materialNo === materialNo)
+  const material = allMaterials.value.find((item) => item.materialNo === materialNo)
   if (!material) {
     row.materialCode = ''
     row.materialName = ''
@@ -321,7 +322,114 @@ function handleMaterialChange(row, materialNo) {
   row.materialName = material.materialName
   row.packageModel = material.packageModel || ''
   row.packagingCapacity = material.packageCapacity ?? 0
+  row.warehouseArea = '默认库区'
   updatePackageCount(row)
+}
+
+function triggerExcelUpload() {
+  fileInputRef.value?.click()
+}
+
+function handleExcelUpload(event) {
+  const file = event.target.files?.[0]
+  if (!file) return
+
+  const reader = new FileReader()
+  reader.onload = (e) => {
+    try {
+      const workbook = XLSX.read(e.target.result, { type: 'array' })
+      const sheetName = workbook.SheetNames[0]
+      const sheet = workbook.Sheets[sheetName]
+      const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 })
+
+      if (rows.length < 2) {
+        ElMessage.warning('Excel 文件至少需要一行数据（表头+数据）')
+        return
+      }
+
+      // Auto-detect header row and columns
+      const headerRow = rows[0]
+      const colMap = detectColumns(headerRow)
+
+      if (!colMap.materialCode) {
+        ElMessage.warning('未识别到物料号列，请确保表头包含"物料号"或"零件号"')
+        return
+      }
+
+      const details = []
+      const seenMaterials = new Set()
+
+      for (let i = 1; i < rows.length; i++) {
+        const row = rows[i]
+        if (!row || row.every((cell) => cell === undefined || cell === null || cell === '')) continue
+
+        const materialCode = String(row[colMap.materialCode] ?? '').trim()
+        if (!materialCode) {
+          ElMessage.warning(`第 ${i + 1} 行物料号为空，已跳过`)
+          continue
+        }
+
+        if (seenMaterials.has(materialCode)) {
+          ElMessage.warning(`物料号"${materialCode}"在第 ${i + 1} 行重复，已跳过`)
+          continue
+        }
+        seenMaterials.add(materialCode)
+
+        const plannedQty = colMap.qty !== undefined ? Number(row[colMap.qty]) || 1 : 1
+        const warehouseArea = colMap.area !== undefined ? String(row[colMap.area] || '').trim() : ''
+        const remark = colMap.remark !== undefined ? String(row[colMap.remark] || '').trim() : ''
+
+        // Find matching material in loaded options
+        const material = allMaterials.value.find(
+          (m) => m.materialNo === materialCode || m.materialName === materialCode
+        )
+
+        details.push({
+          materialCode: materialCode,
+          materialName: material?.materialName || '',
+          packageModel: material?.packageModel || '',
+          packagingCapacity: material?.packageCapacity ?? 0,
+          plannedQty: Math.max(1, plannedQty),
+          packageCount: calculatePackageCount(Math.max(1, plannedQty), material?.packageCapacity ?? 0),
+          warehouseArea: warehouseArea || '默认库区',
+          remark,
+          _filterText: '',
+          _filteredOptions: allMaterials.value
+        })
+      }
+
+      if (details.length === 0) {
+        ElMessage.warning('未从 Excel 中解析到有效数据')
+        return
+      }
+
+      form.details.splice(0, form.details.length, ...details)
+      ElMessage.success(`成功导入 ${details.length} 条物料明细`)
+    } catch (err) {
+      ElMessage.error('Excel 文件解析失败：' + (err.message || '未知错误'))
+    }
+  }
+  reader.readAsArrayBuffer(file)
+
+  // Reset file input so the same file can be re-uploaded
+  event.target.value = ''
+}
+
+function detectColumns(headerRow) {
+  const map = {}
+  for (let i = 0; i < headerRow.length; i++) {
+    const header = String(headerRow[i] ?? '').trim()
+    if (/物料号|零件号|物料编码|编码/.test(header)) {
+      map.materialCode = i
+    } else if (/数量|计划数量|入库数量|个数/.test(header)) {
+      map.qty = i
+    } else if (/库区|仓库区域/.test(header)) {
+      map.area = i
+    } else if (/备注|说明/.test(header)) {
+      map.remark = i
+    }
+  }
+  return map
 }
 
 function handleClose() {
@@ -334,14 +442,13 @@ function handleSubmit() {
       return
     }
 
-    const supplierNames = Array.from(new Set(form.details.map((item) => item.supplierName).filter(Boolean)))
     emit('submit', {
-      supplier: supplierNames.length === 1 ? supplierNames[0] : (supplierNames[0] || '未知供应商'),
+      supplier: form.supplierName || '未知供应商',
       transferStatus: form.transferStatus || '不转包',
       remark: form.remark?.trim() || '',
       details: form.details.map((item) => ({
-        supplierCode: item.supplierCode.trim(),
-        supplierName: item.supplierName.trim(),
+        supplierCode: form.supplierCode,
+        supplierName: form.supplierName,
         materialCode: item.materialCode.trim(),
         materialName: item.materialName.trim(),
         packageModel: item.packageModel?.trim() || '',
