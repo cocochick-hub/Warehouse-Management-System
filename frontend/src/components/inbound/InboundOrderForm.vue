@@ -48,16 +48,12 @@
         />
       </el-form-item>
 
-      <div class="section-head">
-        <span>入库明细</span>
-        <div>
-          <el-button type="primary" link @click="addDetail">
-            <el-icon><Plus /></el-icon>新增明细
-          </el-button>
-          <el-button type="primary" link @click="triggerExcelUpload" :disabled="!form.supplierCode">
-            <el-icon><Upload /></el-icon>Excel导入
-          </el-button>
-        </div>
+      <!-- 可选零件列表 -->
+      <div v-if="form.supplierCode" class="section-head">
+        <span>可选零件</span>
+        <el-button type="primary" link @click="triggerExcelUpload">
+          <el-icon><Upload /></el-icon>Excel导入
+        </el-button>
       </div>
 
       <input
@@ -68,33 +64,78 @@
         @change="handleExcelUpload"
       />
 
-      <el-table :data="form.details" border class="detail-table">
+      <div v-if="form.supplierCode" class="material-picker">
+        <el-input
+          v-model="materialSearch"
+          placeholder="搜索零件（物料号/名称）"
+          clearable
+          class="material-search"
+        >
+          <template #prefix>
+            <el-icon><Search /></el-icon>
+          </template>
+        </el-input>
+        <div class="material-list">
+          <div
+            v-for="material in filteredMaterials"
+            :key="material.materialNo"
+            class="material-card"
+            :class="{ added: isMaterialAdded(material.materialNo) }"
+            @click="addMaterialToDetails(material)"
+          >
+            <div class="card-left">
+              <span class="card-code">{{ material.materialNo }}</span>
+              <span class="card-divider">|</span>
+              <span class="card-name">{{ material.materialName }}</span>
+            </div>
+            <div class="card-right">
+              <el-tag size="small" :type="material.packageCapacity > 0 ? 'success' : 'info'">
+                {{ material.packageCapacity > 0 ? material.packageCapacity + '个/箱' : '未配置包装' }}
+              </el-tag>
+              <el-button
+                v-if="isMaterialAdded(material.materialNo)"
+                size="small"
+                type="danger"
+                plain
+                @click.stop="removeMaterialFromDetails(material.materialNo)"
+              >
+                移除
+              </el-button>
+              <el-button
+                v-else
+                size="small"
+                type="primary"
+                @click.stop="addMaterialToDetails(material)"
+              >
+                <el-icon><Plus /></el-icon>添加
+              </el-button>
+            </div>
+          </div>
+          <el-empty v-if="filteredMaterials.length === 0" description="暂无匹配的零件" :image-size="60" />
+        </div>
+      </div>
+
+      <!-- 空状态提示 -->
+      <div v-else class="select-supplier-hint">
+        <el-icon :size="48"><FolderOpened /></el-icon>
+        <p>请先选择供应商，然后从零件列表中点击添加</p>
+      </div>
+
+      <!-- 入库明细 -->
+      <div v-if="form.details.length > 0" class="section-head">
+        <span>入库明细</span>
+      </div>
+
+      <el-table v-if="form.details.length > 0" :data="form.details" border class="detail-table">
         <el-table-column type="index" label="行号" width="60" />
-        <el-table-column label="物料号" min-width="200">
+        <el-table-column label="物料号" width="180">
           <template #default="{ row }">
-            <el-select
-              v-model="row.materialCode"
-              placeholder="搜索并选择物料"
-              filterable
-              clearable
-              style="width: 100%"
-              :disabled="!form.supplierCode"
-              :filter-method="(query) => filterMaterialOptions(row, query)"
-              @change="(value) => handleMaterialChange(row, value)"
-              @visible-change="(visible) => { if (visible && row.materialCode) row._filterText = '' }"
-            >
-              <el-option
-                v-for="material in row._filteredOptions"
-                :key="material.materialNo"
-                :label="`${material.materialNo} / ${material.materialName}`"
-                :value="material.materialNo"
-              />
-            </el-select>
+            <span class="detail-material-code">{{ row.materialCode }}</span>
           </template>
         </el-table-column>
         <el-table-column label="物料名称" min-width="150">
           <template #default="{ row }">
-            <el-input v-model="row.materialName" placeholder="自动带出" maxlength="100" readonly />
+            <span>{{ row.materialName }}</span>
           </template>
         </el-table-column>
         <el-table-column label="包装容量" width="110">
@@ -117,7 +158,7 @@
         </el-table-column>
         <el-table-column label="箱数" width="90">
           <template #default="{ row }">
-            <div class="package-note">{{ boxCountText(row) }}</div>
+            <span class="package-note">{{ boxCountText(row) }}</span>
           </template>
         </el-table-column>
         <el-table-column label="库区" width="130">
@@ -137,7 +178,7 @@
             <el-input v-model="row.remark" placeholder="可选" maxlength="255" />
           </template>
         </el-table-column>
-        <el-table-column label="操作" width="90" fixed="right">
+        <el-table-column label="操作" width="70" fixed="right">
           <template #default="{ $index }">
             <el-button type="danger" link @click="removeDetail($index)">删除</el-button>
           </template>
@@ -147,26 +188,20 @@
 
     <template #footer>
       <el-button @click="handleClose">取消</el-button>
-      <el-button type="primary" :loading="submitting" :disabled="!form.supplierCode" @click="handleSubmit">创建</el-button>
+      <el-button type="primary" :loading="submitting" :disabled="form.details.length === 0" @click="handleSubmit">创建</el-button>
     </template>
   </el-dialog>
 </template>
 
 <script setup>
-import { reactive, ref, watch } from 'vue'
+import { computed, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { getMaterialsApi, getSuppliersApi, getWarehouseAreasApi } from '@/api/basic'
 import * as XLSX from 'xlsx'
 
 const props = defineProps({
-  visible: {
-    type: Boolean,
-    default: false
-  },
-  submitting: {
-    type: Boolean,
-    default: false
-  }
+  visible: { type: Boolean, default: false },
+  submitting: { type: Boolean, default: false }
 })
 
 const emit = defineEmits(['update:visible', 'submit'])
@@ -177,10 +212,19 @@ const form = reactive(createDefaultForm())
 const supplierOptions = ref([])
 const warehouseAreaOptions = ref([])
 const allMaterials = ref([])
+const materialSearch = ref('')
 
 const rules = {
   supplierCode: [{ required: true, message: '请选择供应商', trigger: 'change' }]
 }
+
+const filteredMaterials = computed(() => {
+  const query = materialSearch.value.trim().toLowerCase()
+  if (!query) return allMaterials.value
+  return allMaterials.value.filter(
+    (m) => m.materialNo.toLowerCase().includes(query) || m.materialName.toLowerCase().includes(query)
+  )
+})
 
 watch(
   () => props.visible,
@@ -201,9 +245,7 @@ function createDefaultDetail() {
     plannedQty: 1,
     packageCount: 1,
     warehouseArea: '默认库区',
-    remark: '',
-    _filterText: '',
-    _filteredOptions: []
+    remark: ''
   }
 }
 
@@ -213,7 +255,7 @@ function createDefaultForm() {
     supplierName: '',
     remark: '',
     transferStatus: '不转包',
-    details: [createDefaultDetail()]
+    details: []
   }
 }
 
@@ -225,45 +267,48 @@ function resetForm() {
   form.transferStatus = next.transferStatus
   form.details.splice(0, form.details.length, ...next.details)
   allMaterials.value = []
+  materialSearch.value = ''
   formRef.value?.clearValidate?.()
 }
 
-function addDetail() {
-  const next = createDefaultDetail()
-  next._filteredOptions = allMaterials.value
-  form.details.push(next)
+function isMaterialAdded(materialCode) {
+  return form.details.some((d) => d.materialCode === materialCode)
+}
+
+function addMaterialToDetails(material) {
+  if (isMaterialAdded(material.materialNo)) return
+
+  form.details.push({
+    materialCode: material.materialNo,
+    materialName: material.materialName,
+    packageModel: material.packageModel || '',
+    packagingCapacity: material.packageCapacity ?? 0,
+    plannedQty: 1,
+    packageCount: calculatePackageCount(1, material.packageCapacity ?? 0),
+    warehouseArea: '默认库区',
+    remark: ''
+  })
+}
+
+function removeMaterialFromDetails(materialCode) {
+  const idx = form.details.findIndex((d) => d.materialCode === materialCode)
+  if (idx !== -1) form.details.splice(idx, 1)
 }
 
 function removeDetail(index) {
-  if (form.details.length === 1) {
-    ElMessage.warning('至少保留一条明细')
-    return
-  }
   form.details.splice(index, 1)
 }
 
 function validateDetails() {
   if (!form.details.length) {
-    ElMessage.warning('请至少填写一条入库明细')
+    ElMessage.warning('请至少添加一条入库明细')
     return false
   }
-
-  const materialKeys = new Set()
   for (const item of form.details) {
-    if (!item.materialCode?.trim()) {
-      ElMessage.warning('请选择物料')
-      return false
-    }
     if (!item.plannedQty || item.plannedQty < 1) {
-      ElMessage.warning('计划数量必须大于 0')
+      ElMessage.warning(`${item.materialName || item.materialCode} 的计划数量必须大于 0`)
       return false
     }
-    const key = `${form.supplierCode}::${item.materialCode.trim()}`
-    if (materialKeys.has(key)) {
-      ElMessage.warning('同一张入库单中不允许重复选择同一物料')
-      return false
-    }
-    materialKeys.add(key)
   }
   return true
 }
@@ -281,10 +326,8 @@ async function fetchWarehouseAreas() {
 async function handleSupplierChange(supplierCode) {
   const selectedSupplier = supplierOptions.value.find((item) => item.supplierCode === supplierCode)
   form.supplierName = selectedSupplier?.supplierName || ''
-
-  // Reset all details when supplier changes
-  const firstDetail = createDefaultDetail()
-  form.details.splice(0, form.details.length, firstDetail)
+  form.details.splice(0, form.details.length)
+  materialSearch.value = ''
 
   if (!selectedSupplier) {
     allMaterials.value = []
@@ -293,19 +336,6 @@ async function handleSupplierChange(supplierCode) {
 
   const { data } = await getMaterialsApi({ supplierCode: selectedSupplier.supplierCode })
   allMaterials.value = data || []
-  firstDetail._filteredOptions = allMaterials.value
-}
-
-function filterMaterialOptions(row, query) {
-  row._filterText = query || ''
-  if (!query) {
-    row._filteredOptions = allMaterials.value
-  } else {
-    const lower = query.toLowerCase()
-    row._filteredOptions = allMaterials.value.filter(
-      (m) => m.materialNo.toLowerCase().includes(lower) || m.materialName.toLowerCase().includes(lower)
-    )
-  }
 }
 
 function handleMaterialChange(row, materialNo) {
@@ -326,6 +356,8 @@ function handleMaterialChange(row, materialNo) {
   updatePackageCount(row)
 }
 
+// ── Excel import ──
+
 function triggerExcelUpload() {
   fileInputRef.value?.click()
 }
@@ -338,8 +370,7 @@ function handleExcelUpload(event) {
   reader.onload = (e) => {
     try {
       const workbook = XLSX.read(e.target.result, { type: 'array' })
-      const sheetName = workbook.SheetNames[0]
-      const sheet = workbook.Sheets[sheetName]
+      const sheet = workbook.Sheets[workbook.SheetNames[0]]
       const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 })
 
       if (rows.length < 2) {
@@ -347,90 +378,73 @@ function handleExcelUpload(event) {
         return
       }
 
-      // Auto-detect header row and columns
-      const headerRow = rows[0]
-      const colMap = detectColumns(headerRow)
-
+      const colMap = detectColumns(rows[0])
       if (!colMap.materialCode) {
         ElMessage.warning('未识别到物料号列，请确保表头包含"物料号"或"零件号"')
         return
       }
 
-      const details = []
-      const seenMaterials = new Set()
-
+      let addedCount = 0
       for (let i = 1; i < rows.length; i++) {
         const row = rows[i]
-        if (!row || row.every((cell) => cell === undefined || cell === null || cell === '')) continue
+        if (!row || row.every((c) => c === undefined || c === null || c === '')) continue
 
         const materialCode = String(row[colMap.materialCode] ?? '').trim()
-        if (!materialCode) {
-          ElMessage.warning(`第 ${i + 1} 行物料号为空，已跳过`)
-          continue
-        }
+        if (!materialCode) continue
 
-        if (seenMaterials.has(materialCode)) {
-          ElMessage.warning(`物料号"${materialCode}"在第 ${i + 1} 行重复，已跳过`)
-          continue
-        }
-        seenMaterials.add(materialCode)
+        if (isMaterialAdded(materialCode)) continue
 
-        const plannedQty = colMap.qty !== undefined ? Number(row[colMap.qty]) || 1 : 1
-        const warehouseArea = colMap.area !== undefined ? String(row[colMap.area] || '').trim() : ''
-        const remark = colMap.remark !== undefined ? String(row[colMap.remark] || '').trim() : ''
-
-        // Find matching material in loaded options
         const material = allMaterials.value.find(
           (m) => m.materialNo === materialCode || m.materialName === materialCode
         )
+        if (!material) {
+          ElMessage.warning(`物料"${materialCode}"不在当前供应商物料列表中，已跳过`)
+          continue
+        }
 
-        details.push({
-          materialCode: materialCode,
-          materialName: material?.materialName || '',
-          packageModel: material?.packageModel || '',
-          packagingCapacity: material?.packageCapacity ?? 0,
-          plannedQty: Math.max(1, plannedQty),
-          packageCount: calculatePackageCount(Math.max(1, plannedQty), material?.packageCapacity ?? 0),
+        const plannedQty = colMap.qty !== undefined ? Math.max(1, Number(row[colMap.qty]) || 1) : 1
+        const warehouseArea = colMap.area !== undefined ? String(row[colMap.area] || '').trim() : '默认库区'
+        const remark = colMap.remark !== undefined ? String(row[colMap.remark] || '').trim() : ''
+
+        form.details.push({
+          materialCode,
+          materialName: material.materialName,
+          packageModel: material.packageModel || '',
+          packagingCapacity: material.packageCapacity ?? 0,
+          plannedQty,
+          packageCount: calculatePackageCount(plannedQty, material.packageCapacity ?? 0),
           warehouseArea: warehouseArea || '默认库区',
-          remark,
-          _filterText: '',
-          _filteredOptions: allMaterials.value
+          remark
         })
+        addedCount++
       }
 
-      if (details.length === 0) {
-        ElMessage.warning('未从 Excel 中解析到有效数据')
-        return
+      if (addedCount > 0) {
+        ElMessage.success(`成功导入 ${addedCount} 条物料明细`)
+      } else {
+        ElMessage.warning('未从 Excel 中解析到可导入的物料')
       }
-
-      form.details.splice(0, form.details.length, ...details)
-      ElMessage.success(`成功导入 ${details.length} 条物料明细`)
     } catch (err) {
       ElMessage.error('Excel 文件解析失败：' + (err.message || '未知错误'))
     }
   }
   reader.readAsArrayBuffer(file)
-
-  // Reset file input so the same file can be re-uploaded
   event.target.value = ''
 }
 
 function detectColumns(headerRow) {
   const map = {}
   for (let i = 0; i < headerRow.length; i++) {
-    const header = String(headerRow[i] ?? '').trim()
-    if (/物料号|零件号|物料编码|编码/.test(header)) {
-      map.materialCode = i
-    } else if (/数量|计划数量|入库数量|个数/.test(header)) {
-      map.qty = i
-    } else if (/库区|仓库区域/.test(header)) {
-      map.area = i
-    } else if (/备注|说明/.test(header)) {
-      map.remark = i
-    }
+    const h = String(headerRow[i] ?? '').trim()
+    if (/物料号|零件号|物料编码|编码/.test(h)) map.materialCode = i
+    else if (/数量|计划数量|入库数量|个数/.test(h)) map.qty = i
+    else if (/库区|仓库区域/.test(h)) map.area = i
+    else if (/备注|说明/.test(h)) map.remark = i
   }
   return map
 }
+
+// ── Submit ──
 
 function handleClose() {
   emit('update:visible', false)
@@ -438,9 +452,7 @@ function handleClose() {
 
 function handleSubmit() {
   formRef.value?.validate((valid) => {
-    if (!valid || !validateDetails()) {
-      return
-    }
+    if (!valid || !validateDetails()) return
 
     emit('submit', {
       supplier: form.supplierName || '未知供应商',
@@ -470,26 +482,20 @@ function updatePackageCount(row) {
 function calculatePackageCount(plannedQty, packagingCapacity) {
   const planned = Number(plannedQty) || 0
   const capacity = Number(packagingCapacity) || 0
-  if (planned <= 0 || capacity <= 0) {
-    return 1
-  }
+  if (planned <= 0 || capacity <= 0) return 1
   return Math.ceil(planned / capacity)
 }
 
 function calculateBoxCount(qty, packagingCapacity) {
   const quantity = Number(qty) || 0
   const capacity = Number(packagingCapacity) || 0
-  if (quantity <= 0 || capacity <= 0) {
-    return 0
-  }
+  if (quantity <= 0 || capacity <= 0) return 0
   return Math.round((quantity * 10) / capacity) / 10
 }
 
 function boxCountText(row) {
   const capacity = Number(row.packagingCapacity) || 0
-  if (capacity <= 0) {
-    return '未配置'
-  }
+  if (capacity <= 0) return '未配置'
   return calculateBoxCount(row.plannedQty, row.packagingCapacity)
 }
 </script>
@@ -499,12 +505,91 @@ function boxCountText(row) {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  margin-bottom: 12px;
+  margin: 16px 0 10px;
   font-weight: 600;
 }
 
+/* 可选零件区域 */
+.material-picker {
+  margin-bottom: 8px;
+}
+
+.material-search {
+  margin-bottom: 10px;
+}
+
+.material-list {
+  max-height: 240px;
+  overflow-y: auto;
+  border: 1px solid #ebeef5;
+  border-radius: 6px;
+}
+
+.material-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 14px;
+  border-bottom: 1px solid #f0f0f0;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.material-card:last-child {
+  border-bottom: none;
+}
+
+.material-card:hover {
+  background: #f5f7fa;
+}
+
+.material-card.added {
+  background: #f0f9eb;
+}
+
+.card-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.card-code {
+  font-weight: 600;
+  color: #303133;
+}
+
+.card-divider {
+  color: #dcdfe6;
+}
+
+.card-name {
+  color: #606266;
+}
+
+.card-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* 选择供应商提示 */
+.select-supplier-hint {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px;
+  color: #909399;
+  gap: 8px;
+}
+
+/* 明细表格 */
 .detail-table {
   margin-bottom: 8px;
+}
+
+.detail-material-code {
+  font-weight: 600;
 }
 
 .package-note {
