@@ -82,7 +82,6 @@
     <OutboundOrderForm
       v-model:visible="createVisible"
       :submitting="submitting"
-      :suppliers="supplierOptions"
       @submit="handleSubmitCreate"
     />
 
@@ -115,7 +114,6 @@ import OutboundOrderDetailDialog from '@/components/outbound/OutboundOrderDetail
 import OutboundIssueDialog from '@/components/outbound/OutboundIssueDialog.vue'
 import OutboundPrintDialog from '@/components/outbound/OutboundPrintDialog.vue'
 import { listOrders, createOrder, getOrderDetail } from '@/api/outbound'
-import { getSuppliersApi } from '@/api/basic'
 
 const route = useRoute()
 
@@ -135,7 +133,6 @@ const printVisible = ref(false)
 const currentOrderId = ref(null)
 const currentPrintOrder = ref(null)
 const currentPrintDetails = ref([])
-const supplierOptions = ref([])
 const pagination = reactive({
   page: 1,
   size: 10,
@@ -144,7 +141,6 @@ const pagination = reactive({
 
 onMounted(() => {
   fetchOrders()
-  fetchSuppliers()
 })
 
 async function fetchOrders() {
@@ -164,15 +160,6 @@ async function fetchOrders() {
     pagination.total = 0
   } finally {
     loading.value = false
-  }
-}
-
-async function fetchSuppliers() {
-  try {
-    const { data } = await getSuppliersApi()
-    supplierOptions.value = data || []
-  } catch {
-    supplierOptions.value = []
   }
 }
 
