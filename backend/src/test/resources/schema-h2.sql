@@ -329,3 +329,15 @@ CREATE TABLE IF NOT EXISTS package_transfer (
     operator            VARCHAR(50),
     created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
+
+-- 18. 操作审计日志表
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(50)   NOT NULL,
+    action        VARCHAR(20)   NOT NULL,
+    target        VARCHAR(100)  NOT NULL,
+    target_id     VARCHAR(50),
+    detail        TEXT,
+    ip            VARCHAR(50),
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);

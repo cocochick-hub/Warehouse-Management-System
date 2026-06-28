@@ -55,6 +55,13 @@
             <version>2.1.214</version>
         </dependency>
 
+        <!-- Apache POI（Excel 导出） -->
+        <dependency>
+            <groupId>org.apache.poi</groupId>
+            <artifactId>poi-ooxml</artifactId>
+            <version>5.2.5</version>
+        </dependency>
+
         <!-- 测试框架 -->
         <dependency>
             <groupId>org.springframework.boot</groupId>

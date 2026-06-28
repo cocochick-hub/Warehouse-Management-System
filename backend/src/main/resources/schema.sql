@@ -504,3 +504,20 @@ CREATE TABLE IF NOT EXISTS package_transfer (
     KEY idx_package_transfer_target (target_kanban_no),
     KEY idx_package_transfer_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='转包操作记录表';
+
+-- ============================================================================
+-- 18. 操作审计日志表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY  COMMENT '主键ID',
+    username      VARCHAR(50)   NOT NULL             COMMENT '操作人',
+    action        VARCHAR(20)   NOT NULL             COMMENT '操作类型：CREATE/UPDATE/DELETE',
+    target        VARCHAR(100)  NOT NULL             COMMENT '操作对象（如 InboundOrder）',
+    target_id     VARCHAR(50)                        COMMENT '操作对象ID',
+    detail        TEXT                               COMMENT '操作详情JSON',
+    ip            VARCHAR(50)                        COMMENT '请求IP',
+    created_at    DATETIME      NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '操作时间',
+    KEY idx_audit_username (username),
+    KEY idx_audit_action (action),
+    KEY idx_audit_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作审计日志表';
