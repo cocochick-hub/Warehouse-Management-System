@@ -329,8 +329,8 @@ CREATE TABLE IF NOT EXISTS outbound_order_detail (
 -- 出库历史表
 CREATE TABLE IF NOT EXISTS outbound_history (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    outbound_order_id   BIGINT       NOT NULL,
-    outbound_detail_id  BIGINT       NOT NULL,
+    outbound_order_id   BIGINT       DEFAULT NULL,
+    outbound_detail_id  BIGINT       DEFAULT NULL,
     doc_no              VARCHAR(50)  NOT NULL,
     material_code       VARCHAR(50)  NOT NULL,
     material_name       VARCHAR(100) NOT NULL,
@@ -521,3 +521,43 @@ CREATE TABLE IF NOT EXISTS audit_log (
     KEY idx_audit_action (action),
     KEY idx_audit_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='操作审计日志表';
+
+-- ============================================================================
+-- 19. 盘点任务表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS inventory_check_task (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY  COMMENT '主键ID',
+    task_no         VARCHAR(50)  NOT NULL UNIQUE        COMMENT '盘点单号（PD-yyyyMMdd-序号）',
+    task_name       VARCHAR(100) NOT NULL               COMMENT '盘点名称（如"A区2026年6月盘点"）',
+    check_type      VARCHAR(20)  NOT NULL DEFAULT '明盘' COMMENT '盘点类型：明盘/盲盘',
+    status          VARCHAR(20)  NOT NULL DEFAULT '进行中' COMMENT '状态：进行中/已完成/已取消',
+    warehouse_area  VARCHAR(100)                        COMMENT '盘点库区（空=全库）',
+    material_code   VARCHAR(50)                         COMMENT '盘点物料（空=全部物料）',
+    created_by      VARCHAR(50)                         COMMENT '创建人',
+    completed_at    DATETIME                            COMMENT '完成时间',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='盘点任务表';
+
+-- ============================================================================
+-- 20. 盘点明细表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS inventory_check_detail (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY  COMMENT '主键ID',
+    task_id         BIGINT       NOT NULL              COMMENT '盘点任务ID',
+    task_no         VARCHAR(50)  NOT NULL              COMMENT '盘点单号',
+    material_code   VARCHAR(50)  NOT NULL              COMMENT '物料编码',
+    material_name   VARCHAR(100) NOT NULL              COMMENT '物料名称',
+    supplier        VARCHAR(100) NOT NULL              COMMENT '供应商',
+    warehouse_area  VARCHAR(100)                       COMMENT '库区',
+    system_qty      INT          NOT NULL DEFAULT 0    COMMENT '系统库存数量',
+    actual_qty      INT                               COMMENT '实盘数量（扫码填入）',
+    diff_qty        INT                               COMMENT '差异（actual - system）',
+    status          VARCHAR(20)  NOT NULL DEFAULT '待盘' COMMENT '状态：待盘/已盘/已调整',
+    checked_by      VARCHAR(50)                        COMMENT '盘点人',
+    checked_at      DATETIME                           COMMENT '盘点时间',
+    created_at      DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    KEY idx_check_detail_task (task_id),
+    KEY idx_check_detail_task_no (task_no),
+    KEY idx_check_detail_material (material_code)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='盘点明细表';

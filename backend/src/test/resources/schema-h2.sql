@@ -195,8 +195,8 @@ CREATE TABLE IF NOT EXISTS outbound_order_detail (
 
 CREATE TABLE IF NOT EXISTS outbound_history (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    outbound_order_id   BIGINT       NOT NULL,
-    outbound_detail_id  BIGINT       NOT NULL,
+    outbound_order_id   BIGINT       DEFAULT NULL,
+    outbound_detail_id  BIGINT       DEFAULT NULL,
     doc_no              VARCHAR(50)  NOT NULL,
     material_code       VARCHAR(50)  NOT NULL,
     material_name       VARCHAR(100) NOT NULL,
@@ -340,4 +340,37 @@ CREATE TABLE IF NOT EXISTS audit_log (
     detail        TEXT,
     ip            VARCHAR(50),
     created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 19. 盘点任务表
+CREATE TABLE IF NOT EXISTS inventory_check_task (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_no         VARCHAR(50)  NOT NULL UNIQUE,
+    task_name       VARCHAR(100) NOT NULL,
+    check_type      VARCHAR(20)  NOT NULL DEFAULT '明盘',
+    status          VARCHAR(20)  NOT NULL DEFAULT '进行中',
+    warehouse_area  VARCHAR(100),
+    material_code   VARCHAR(50),
+    created_by      VARCHAR(50),
+    completed_at    TIMESTAMP,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20. 盘点明细表
+CREATE TABLE IF NOT EXISTS inventory_check_detail (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_id         BIGINT       NOT NULL,
+    task_no         VARCHAR(50)  NOT NULL,
+    material_code   VARCHAR(50)  NOT NULL,
+    material_name   VARCHAR(100) NOT NULL,
+    supplier        VARCHAR(100) NOT NULL,
+    warehouse_area  VARCHAR(100),
+    system_qty      INT          NOT NULL DEFAULT 0,
+    actual_qty      INT,
+    diff_qty        INT,
+    status          VARCHAR(20)  NOT NULL DEFAULT '待盘',
+    checked_by      VARCHAR(50),
+    checked_at      TIMESTAMP,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
