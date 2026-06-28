@@ -51,6 +51,12 @@
       }
     },
     {
+      "path": "pages/transfer/index",
+      "style": {
+        "navigationBarTitleText": "转包"
+      }
+    },
+    {
       "path": "pages/settings/index",
       "style": {
         "navigationBarTitleText": "设置"

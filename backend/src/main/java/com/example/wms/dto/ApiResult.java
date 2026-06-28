@@ -37,19 +37,19 @@ public class ApiResult<T> {
         return new ApiResult<>(200, message, data, System.currentTimeMillis());
     }
 
-    public static <T> ApiResult<T> error(int code, String message) {
+    public static ApiResult<Void> error(int code, String message) {
         return new ApiResult<>(code, message, null, System.currentTimeMillis());
     }
 
-    public static <T> ApiResult<T> unauthorized(String message) {
+    public static ApiResult<Void> unauthorized(String message) {
         return new ApiResult<>(401, message, null, System.currentTimeMillis());
     }
 
-    public static <T> ApiResult<T> forbidden(String message) {
+    public static ApiResult<Void> forbidden(String message) {
         return new ApiResult<>(403, message, null, System.currentTimeMillis());
     }
 
-    public static <T> ApiResult<T> serverError(String message) {
+    public static ApiResult<Void> serverError(String message) {
         return new ApiResult<>(500, message, null, System.currentTimeMillis());
     }
 }
