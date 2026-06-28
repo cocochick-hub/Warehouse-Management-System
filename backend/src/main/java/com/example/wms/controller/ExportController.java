@@ -3,9 +3,11 @@ package com.example.wms.controller;
 import com.example.wms.entity.InventoryStock;
 import com.example.wms.entity.PackageTransfer;
 import com.example.wms.entity.InboundKanbanLabel;
+import com.example.wms.entity.OutboundHistory;
 import com.example.wms.repository.InventoryStockRepository;
 import com.example.wms.repository.PackageTransferRepository;
 import com.example.wms.repository.InboundKanbanLabelRepository;
+import com.example.wms.repository.OutboundHistoryRepository;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -25,6 +27,7 @@ import java.util.List;
  *
  * GET /api/export/inventory  — 库存报表
  * GET /api/export/inbound    — 入库明细
+ * GET /api/export/outbound   — 出库明细
  * GET /api/export/transfer   — 转包记录
  */
 @RestController
@@ -34,13 +37,16 @@ public class ExportController {
     private final InventoryStockRepository inventoryStockRepository;
     private final InboundKanbanLabelRepository kanbanLabelRepository;
     private final PackageTransferRepository transferRepository;
+    private final OutboundHistoryRepository outboundHistoryRepository;
 
     public ExportController(InventoryStockRepository inventoryStockRepository,
                             InboundKanbanLabelRepository kanbanLabelRepository,
-                            PackageTransferRepository transferRepository) {
+                            PackageTransferRepository transferRepository,
+                            OutboundHistoryRepository outboundHistoryRepository) {
         this.inventoryStockRepository = inventoryStockRepository;
         this.kanbanLabelRepository = kanbanLabelRepository;
         this.transferRepository = transferRepository;
+        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     /** 导出库存报表 */
@@ -104,6 +110,38 @@ public class ExportController {
 
         for (int i = 0; i < titles.length; i++) sheet.autoSizeColumn(i);
         writeResponse(response, wb, "入库明细");
+    }
+
+    /** 导出出库明细 */
+    @GetMapping("/outbound")
+    public void exportOutbound(HttpServletResponse response) throws IOException {
+        List<OutboundHistory> list = outboundHistoryRepository.findAll();
+
+        Workbook wb = new XSSFWorkbook();
+        Sheet sheet = wb.createSheet("出库明细");
+        Row header = sheet.createRow(0);
+        String[] titles = {"出库单号", "物料编码", "物料名称", "供应商", "出库数量", "源入库单号", "库区", "操作人", "状态", "出库时间"};
+        for (int i = 0; i < titles.length; i++) {
+            header.createCell(i).setCellValue(titles[i]);
+        }
+
+        int rowIdx = 1;
+        for (OutboundHistory h : list) {
+            Row row = sheet.createRow(rowIdx++);
+            row.createCell(0).setCellValue(h.getDocNo());
+            row.createCell(1).setCellValue(h.getMaterialCode());
+            row.createCell(2).setCellValue(h.getMaterialName());
+            row.createCell(3).setCellValue(h.getSupplierName());
+            row.createCell(4).setCellValue(h.getIssueQty() != null ? h.getIssueQty() : 0);
+            row.createCell(5).setCellValue(h.getSourceInboundDoc() != null ? h.getSourceInboundDoc() : "-");
+            row.createCell(6).setCellValue(h.getWarehouseArea() != null ? h.getWarehouseArea() : "默认库区");
+            row.createCell(7).setCellValue(h.getIssuedBy() != null ? h.getIssuedBy() : "-");
+            row.createCell(8).setCellValue(h.getStatus() != null ? h.getStatus() : "-");
+            row.createCell(9).setCellValue(h.getCreatedAt() != null ? h.getCreatedAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "-");
+        }
+
+        for (int i = 0; i < titles.length; i++) sheet.autoSizeColumn(i);
+        writeResponse(response, wb, "出库明细");
     }
 
     /** 导出转包记录 */

@@ -3,8 +3,10 @@ package com.example.wms.service.impl;
 import com.example.wms.dto.transfer.TransferRequest;
 import com.example.wms.dto.transfer.TransferResultDTO;
 import com.example.wms.entity.InboundKanbanLabel;
+import com.example.wms.entity.InventoryStock;
 import com.example.wms.entity.PackageTransfer;
 import com.example.wms.repository.InboundKanbanLabelRepository;
+import com.example.wms.repository.InventoryStockRepository;
 import com.example.wms.repository.PackageTransferRepository;
 import com.example.wms.service.TransferService;
 import org.springframework.stereotype.Service;
@@ -32,11 +34,14 @@ public class TransferServiceImpl implements TransferService {
 
     private final InboundKanbanLabelRepository kanbanLabelRepository;
     private final PackageTransferRepository transferRepository;
+    private final InventoryStockRepository inventoryStockRepository;
 
     public TransferServiceImpl(InboundKanbanLabelRepository kanbanLabelRepository,
-                               PackageTransferRepository transferRepository) {
+                               PackageTransferRepository transferRepository,
+                               InventoryStockRepository inventoryStockRepository) {
         this.kanbanLabelRepository = kanbanLabelRepository;
         this.transferRepository = transferRepository;
+        this.inventoryStockRepository = inventoryStockRepository;
     }
 
     @Override
@@ -112,6 +117,20 @@ public class TransferServiceImpl implements TransferService {
         source.setUpdatedBy(operator);
         source.setUpdatedAt(LocalDateTime.now());
         kanbanLabelRepository.save(source);
+
+        // 4.1 同步扣减 InventoryStock.onHandQty（按物料+供应商+库区定位）
+        String stockArea = source.getWarehouseArea() != null ? source.getWarehouseArea() : "默认库区";
+        InventoryStock stock = inventoryStockRepository
+                .findByMaterialCodeAndSupplierAndWarehouseArea(
+                        source.getMaterialCode(), source.getSupplierName(), stockArea)
+                .orElse(null);
+        if (stock != null) {
+            int newOnHand = stock.getOnHandQty() - transferQty;
+            stock.setOnHandQty(Math.max(newOnHand, 0));
+            stock.setUpdatedBy(operator);
+            stock.setUpdatedAt(LocalDateTime.now());
+            inventoryStockRepository.save(stock);
+        }
 
         // 5. 记录转包历史
         PackageTransfer record = new PackageTransfer();

@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '@/utils/auth'
+import { ElMessage } from 'element-plus'
 
 const routes = [
   {
@@ -147,6 +148,12 @@ const routes = [
         meta: { title: '物料需求' }
       },
       {
+        path: 'check',
+        name: 'CheckTask',
+        component: () => import('@/views/check/TaskList.vue'),
+        meta: { title: '盘点任务' }
+      },
+      {
         path: 'alert/threshold',
         name: 'AlertThreshold',
         component: () => import('@/views/alert/Threshold.vue'),
@@ -201,6 +208,7 @@ router.beforeEach((to, from, next) => {
       const userRole = userInfo.role
       const requiredRoles = to.meta.roles
       if (requiredRoles && !requiredRoles.includes(userRole)) {
+        ElMessage.warning('无权限访问该页面')
         next('/dashboard')
       } else {
         next()

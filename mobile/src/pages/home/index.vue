@@ -38,6 +38,7 @@ const menuItems = [
   { label: '转包', icon: 'exchange', color: '#ff976a', path: '/pages/transfer/index' },
   { label: '封存', icon: 'lock', color: '#9e9e9e', path: '/pages/seal/index' },
   { label: '解封', icon: 'unlock', color: '#9e9e9e', path: '/pages/seal/index' },
+  { label: '盘点', icon: 'search', color: '#1989fa', path: '/pages/check/index' },
 ]
 
 function navigateTo(path) {

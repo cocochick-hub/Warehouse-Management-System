@@ -57,6 +57,18 @@
       }
     },
     {
+      "path": "pages/check/index",
+      "style": {
+        "navigationBarTitleText": "盘点"
+      }
+    },
+    {
+      "path": "pages/check/detail",
+      "style": {
+        "navigationBarTitleText": "盘点明细"
+      }
+    },
+    {
       "path": "pages/settings/index",
       "style": {
         "navigationBarTitleText": "设置"
