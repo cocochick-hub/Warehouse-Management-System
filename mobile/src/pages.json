@@ -45,6 +45,12 @@
       }
     },
     {
+      "path": "pages/seal/index",
+      "style": {
+        "navigationBarTitleText": "封存/解封"
+      }
+    },
+    {
       "path": "pages/settings/index",
       "style": {
         "navigationBarTitleText": "设置"
