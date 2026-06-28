@@ -158,6 +158,13 @@ const routes = [
         component: () => import('@/views/seal/SealManagement.vue'),
         meta: { title: '封存管理' }
       },
+      // 操作日志
+      {
+        path: 'audit',
+        name: 'AuditLog',
+        component: () => import('@/views/audit/AuditLog.vue'),
+        meta: { title: '操作日志', roles: ['admin', 'manager'] }
+      },
       // AI 助手
       {
         path: 'ai/chat',
@@ -189,7 +196,15 @@ router.beforeEach((to, from, next) => {
     if (to.path === '/login') {
       next('/dashboard')
     } else {
-      next()
+      // 角色权限检查
+      const userInfo = JSON.parse(localStorage.getItem('wms_user_info') || '{}')
+      const userRole = userInfo.role
+      const requiredRoles = to.meta.roles
+      if (requiredRoles && !requiredRoles.includes(userRole)) {
+        next('/dashboard')
+      } else {
+        next()
+      }
     }
   } else {
     if (whiteList.includes(to.path)) {
