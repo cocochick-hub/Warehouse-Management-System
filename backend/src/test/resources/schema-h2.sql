@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS inbound_order (
     item_count        INT          NOT NULL DEFAULT 0,
     planned_total_qty INT          NOT NULL DEFAULT 0,
     actual_total_qty  INT          NOT NULL DEFAULT 0,
+    transfer_status   VARCHAR(20)  DEFAULT '不转包',
     remark            VARCHAR(255) DEFAULT NULL,
     created_by        VARCHAR(50)  DEFAULT 'system',
     updated_by        VARCHAR(50)  DEFAULT 'system',
@@ -210,8 +211,7 @@ CREATE TABLE IF NOT EXISTS outbound_history (
     FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id)
 );
 
--- 9. 看板标签表（简化版）
-DROP TABLE IF EXISTS inbound_kanban_label;
+-- 9. 看板标签表
 CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
     inbound_order_id        BIGINT       NOT NULL,
@@ -313,4 +313,19 @@ CREATE TABLE IF NOT EXISTS alert_threshold (
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (material_code, supplier)
+);
+
+-- 17. 转包记录表
+CREATE TABLE IF NOT EXISTS package_transfer (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source_kanban_no    VARCHAR(50)  NOT NULL,
+    target_kanban_no    VARCHAR(50)  NOT NULL,
+    transfer_qty        INT          NOT NULL,
+    source_qty_before   INT          NOT NULL,
+    source_qty_after    INT          NOT NULL,
+    material_code       VARCHAR(50)  NOT NULL,
+    material_name       VARCHAR(100) NOT NULL,
+    supplier_name       VARCHAR(100),
+    operator            VARCHAR(50),
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

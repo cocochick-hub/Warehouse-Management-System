@@ -1,6 +1,6 @@
 import { getToken, clearAuth } from '@/utils/auth'
 
-const DEFAULT_BASE_URL = 'http://10.196.86.149:8080'
+const DEFAULT_BASE_URL = 'http://localhost:8080'
 
 /** 动态获取 baseUrl，每次请求实时从 storage 读取，修改后无需重启即可生效 */
 function getBaseUrl() {
