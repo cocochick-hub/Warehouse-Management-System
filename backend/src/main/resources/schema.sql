@@ -174,17 +174,12 @@ CREATE TABLE IF NOT EXISTS outbound_order (
     UNIQUE (doc_no)
 );
 
--- 出库单明细表和出库历史表将在后面的出库单区域统一重建
-DROP TABLE IF EXISTS outbound_order_detail;
-DROP TABLE IF EXISTS outbound_history;
+-- 出库单明细表和出库历史表将在后面的出库单区域统一创建
+-- (不使用 DROP TABLE，数据持久保留)
 
 -- 9. 看板标签表（简化版）
-DROP TABLE IF EXISTS inbound_kanban_label;
-DROP TABLE IF EXISTS inbound_order_detail;
-DROP TABLE IF EXISTS inventory_stock;
-DROP TABLE IF EXISTS inbound_order;
 
-CREATE TABLE inbound_order (
+CREATE TABLE IF NOT EXISTS inbound_order (
     id                BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     doc_no            VARCHAR(50)  NOT NULL COMMENT '入库单号',
     supplier          VARCHAR(100) NOT NULL COMMENT '供应商名称快照',
@@ -204,7 +199,7 @@ CREATE TABLE inbound_order (
     KEY idx_inbound_order_created_at (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单头表';
 
-CREATE TABLE inbound_order_detail (
+CREATE TABLE IF NOT EXISTS inbound_order_detail (
     id                 BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     inbound_order_id   BIGINT       NOT NULL COMMENT '入库单ID',
     doc_no             VARCHAR(50)  NOT NULL COMMENT '入库单号冗余',
@@ -232,7 +227,7 @@ CREATE TABLE inbound_order_detail (
     KEY idx_inbound_order_detail_supplier_code (supplier_code)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库单明细表';
 
-CREATE TABLE inbound_kanban_label (
+CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     id                      BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     inbound_order_id        BIGINT       NOT NULL COMMENT '入库单ID',
     inbound_order_detail_id BIGINT       NOT NULL COMMENT '入库明细ID',
@@ -268,7 +263,7 @@ CREATE TABLE inbound_kanban_label (
     KEY idx_inbound_kanban_label_detail_id (inbound_order_detail_id)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='入库二维码看板表';
 
-CREATE TABLE inventory_stock (
+CREATE TABLE IF NOT EXISTS inventory_stock (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
     material_code       VARCHAR(50)  NOT NULL COMMENT '物料号',
     material_name       VARCHAR(100) NOT NULL COMMENT '物料名称快照',
@@ -291,9 +286,7 @@ CREATE TABLE inventory_stock (
 -- ============================================================================
 -- 6. 出库单表
 -- ============================================================================
-DROP TABLE IF EXISTS outbound_order_detail;
-DROP TABLE IF EXISTS outbound_order;
-CREATE TABLE outbound_order (
+CREATE TABLE IF NOT EXISTS outbound_order (
     id              BIGINT AUTO_INCREMENT PRIMARY KEY  COMMENT '主键ID',
     doc_no          VARCHAR(50)  NOT NULL UNIQUE       COMMENT '出库单号',
     supplier        VARCHAR(100) NOT NULL              COMMENT '供应商',
@@ -491,3 +484,23 @@ CREATE TABLE IF NOT EXISTS alert_threshold (
     KEY idx_alert_threshold_material (material_code),
     KEY idx_alert_threshold_supplier (supplier)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='高低储预警阈值配置表';
+
+-- ============================================================================
+-- 17. 转包记录表
+-- ============================================================================
+CREATE TABLE IF NOT EXISTS package_transfer (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
+    source_kanban_no    VARCHAR(50)  NOT NULL COMMENT '源看板号',
+    target_kanban_no    VARCHAR(50)  NOT NULL COMMENT '目标看板号（新看板号）',
+    transfer_qty        INT          NOT NULL COMMENT '转移数量',
+    source_qty_before   INT          NOT NULL COMMENT '转移前源看板可用数量',
+    source_qty_after    INT          NOT NULL COMMENT '转移后源看板可用数量',
+    material_code       VARCHAR(50)  NOT NULL COMMENT '物料编码快照',
+    material_name       VARCHAR(100) NOT NULL COMMENT '物料名称快照',
+    supplier_name       VARCHAR(100) COMMENT '供应商名称快照',
+    operator            VARCHAR(50)  COMMENT '操作人',
+    created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    KEY idx_package_transfer_source (source_kanban_no),
+    KEY idx_package_transfer_target (target_kanban_no),
+    KEY idx_package_transfer_created (created_at)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='转包操作记录表';
