@@ -123,6 +123,13 @@ const routes = [
           }
         ]
       },
+      // 转包管理
+      {
+        path: 'transfer',
+        name: 'Transfer',
+        component: () => import('@/views/transfer/Transfer.vue'),
+        meta: { title: '转包管理' }
+      },
       {
         path: 'inventory',
         meta: { title: '库存管理' },
@@ -173,6 +180,12 @@ const routes = [
         meta: { title: '操作日志', roles: ['admin', 'manager'] }
       },
       // AI 助手
+      {
+        path: 'system/users',
+        name: 'UserPermission',
+        component: () => import('@/views/system/UserPermission.vue'),
+        meta: { title: '用户权限管理', roles: ['admin'] }
+      },
       {
         path: 'ai/chat',
         name: 'AiChat',

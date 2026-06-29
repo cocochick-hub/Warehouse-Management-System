@@ -86,4 +86,8 @@ public class InboundKanbanLabel extends BaseEntity {
 
     @Column(name = "sealed_by", length = 50)
     private String sealedBy;
+
+    /** 冻结量：封存时记录冻结数量，解封时清零 */
+    @Column(name = "frozen_qty")
+    private Integer frozenQty = 0;
 }

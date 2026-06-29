@@ -87,6 +87,11 @@
         </el-menu-item>
       </el-sub-menu>
 
+      <el-menu-item index="/transfer">
+        <el-icon><RefreshRight /></el-icon>
+        <span>转包管理</span>
+      </el-menu-item>
+
       <el-sub-menu index="inventory">
         <template #title>
           <el-icon><DataBoard /></el-icon>
@@ -125,6 +130,11 @@
       <el-menu-item index="/audit">
         <el-icon><Document /></el-icon>
         <span>操作日志</span>
+      </el-menu-item>
+
+      <el-menu-item v-if="hasRole('admin')" index="/system/users">
+        <el-icon><UserFilled /></el-icon>
+        <span>用户权限</span>
       </el-menu-item>
 
       <el-menu-item index="/ai/chat">

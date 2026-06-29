@@ -65,6 +65,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             // 登录接口放行（无需认证）
             .antMatchers("/api/auth/login").permitAll()
+            .antMatchers("/api/admin/**").hasRole("admin")
             // 其他所有请求需要认证
             .anyRequest().authenticated()
             .and()

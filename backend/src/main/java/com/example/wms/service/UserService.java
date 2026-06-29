@@ -2,7 +2,11 @@ package com.example.wms.service;
 
 import com.example.wms.dto.LoginRequest;
 import com.example.wms.dto.LoginResponse;
+import com.example.wms.dto.admin.CreateUserRequest;
+import com.example.wms.dto.admin.ManagedUserDTO;
 import com.example.wms.dto.UserInfoDTO;
+
+import java.util.List;
 
 /**
  * 用户认证服务接口
@@ -38,4 +42,12 @@ public interface UserService {
      * @return 更新后的用户信息
      */
     UserInfoDTO updateUserInfo(String username, String phone);
+
+    List<ManagedUserDTO> listManagedUsers();
+
+    ManagedUserDTO createUser(CreateUserRequest request);
+
+    ManagedUserDTO updateUserRole(Long id, String role);
+
+    ManagedUserDTO updateUserStatus(Long id, Integer status);
 }
