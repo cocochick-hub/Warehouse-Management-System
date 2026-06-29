@@ -205,6 +205,7 @@ CREATE TABLE IF NOT EXISTS outbound_history (
     issue_qty           INT          NOT NULL,
     source_inbound_doc  VARCHAR(50)  DEFAULT NULL,
     source_detail_id    BIGINT       DEFAULT NULL,
+    kanban_label_id     BIGINT       DEFAULT NULL,
     warehouse_area      VARCHAR(100) DEFAULT '默认库区',
     issued_by           VARCHAR(50)  DEFAULT 'system',
     status              VARCHAR(20)  NOT NULL DEFAULT '已出库',

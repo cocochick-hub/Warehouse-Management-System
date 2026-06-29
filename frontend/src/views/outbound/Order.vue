@@ -51,7 +51,7 @@
           {{ formatDateTime(row.createdAt) }}
         </template>
       </el-table-column>
-      <el-table-column label="操作" width="240" fixed="right">
+      <el-table-column label="操作" width="300" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleView(row.id)">详情</el-button>
           <el-button
@@ -61,6 +61,13 @@
             size="small"
             @click="handleIssue(row.id)"
           >出库</el-button>
+          <el-button
+            v-if="row.actualTotalQty > 0"
+            type="danger"
+            link
+            size="small"
+            @click="handleReturn(row.id)"
+          >退库</el-button>
           <el-button type="warning" link size="small" @click="handlePrint(row.id)">打印</el-button>
         </template>
       </el-table-column>
@@ -101,6 +108,12 @@
       :order="currentPrintOrder"
       :details="currentPrintDetails"
     />
+
+    <OutboundReturnDialog
+      v-model:visible="returnVisible"
+      :order-id="currentOrderId"
+      @success="handleReturnSuccess"
+    />
   </PageContainer>
 </template>
 
@@ -113,6 +126,7 @@ import OutboundOrderForm from '@/components/outbound/OutboundOrderForm.vue'
 import OutboundOrderDetailDialog from '@/components/outbound/OutboundOrderDetailDialog.vue'
 import OutboundIssueDialog from '@/components/outbound/OutboundIssueDialog.vue'
 import OutboundPrintDialog from '@/components/outbound/OutboundPrintDialog.vue'
+import OutboundReturnDialog from '@/components/outbound/OutboundReturnDialog.vue'
 import { listOrders, createOrder, getOrderDetail } from '@/api/outbound'
 
 const route = useRoute()
@@ -129,6 +143,7 @@ const tableData = ref([])
 const createVisible = ref(false)
 const detailVisible = ref(false)
 const issueVisible = ref(false)
+const returnVisible = ref(false)
 const printVisible = ref(false)
 const currentOrderId = ref(null)
 const currentPrintOrder = ref(null)
@@ -225,6 +240,16 @@ async function handleSubmitCreate(payload) {
 }
 
 function handleIssueSuccess() {
+  pagination.page = 1
+  fetchOrders()
+}
+
+function handleReturn(id) {
+  currentOrderId.value = id
+  returnVisible.value = true
+}
+
+function handleReturnSuccess() {
   pagination.page = 1
   fetchOrders()
 }

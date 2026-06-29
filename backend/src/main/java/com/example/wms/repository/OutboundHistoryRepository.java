@@ -17,6 +17,10 @@ public interface OutboundHistoryRepository extends JpaRepository<OutboundHistory
 
     List<OutboundHistory> findByOutboundDetailId(Long outboundDetailId);
 
+    List<OutboundHistory> findByKanbanLabelId(Long kanbanLabelId);
+
+    List<OutboundHistory> findByOutboundOrderId(Long outboundOrderId);
+
     /** AI智能预警：查询指定时间之后的出库记录 */
     List<OutboundHistory> findByCreatedAtAfter(LocalDateTime dateTime);
 }

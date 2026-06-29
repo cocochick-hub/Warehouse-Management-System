@@ -11,8 +11,12 @@ import com.example.wms.dto.outbound.OutboundReturnLabelResponse;
 import com.example.wms.dto.outbound.OutboundReturnRequest;
 import com.example.wms.dto.outbound.OutboundReturnResponse;
 import com.example.wms.dto.outbound.OutboundScanLabelResponse;
+import com.example.wms.dto.outbound.OutboundKanbanLabelDTO;
+import com.example.wms.dto.outbound.OutboundIssueByLabelRequest;
+import com.example.wms.dto.outbound.OutboundIssuedLabelDTO;
 
 import org.springframework.data.domain.Page;
+import java.util.List;
 
 public interface OutboundOrderService {
 
@@ -41,4 +45,28 @@ public interface OutboundOrderService {
     OutboundReturnResponse returnByScan(OutboundReturnRequest request, String operator);
 
     OutboundOrderDetailResponse issueWithoutOrder(OutboundOrderlessRequest request, String operator);
+
+    /**
+     * 获取出库单可用的看板标签列表
+     * 按物料编码+供应商名称匹配出库单明细，返回已入库、未封存、未出库的看板
+     */
+    List<OutboundKanbanLabelDTO> getAvailableKanbanLabels(Long orderId);
+
+    /**
+     * 按看板标签出库（多选模式）
+     * 自动根据物料编码+供应商名称匹配出库单明细行，校验数量不超过计划
+     */
+    OutboundOrderDetailResponse issueByLabels(Long orderId, List<Long> labelIds, String operator);
+
+    /**
+     * 获取出库单已出库的看板标签列表（供退库选择）
+     * 返回该出库单下已出库但未退库的看板
+     */
+    List<OutboundIssuedLabelDTO> getIssuedLabels(Long orderId);
+
+    /**
+     * 批量退库（多选看板模式）
+     * 库存回增 + 出库历史标记已退库 + 看板重置 + 更新出库明细实发数量
+     */
+    OutboundOrderDetailResponse returnByLabels(Long orderId, List<Long> labelIds, String operator);
 }
