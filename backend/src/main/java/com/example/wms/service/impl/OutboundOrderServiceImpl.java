@@ -859,14 +859,18 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                     false, "看板号不存在");
         }
 
-        // 查找该看板对应的入库明细
-        InboundOrderDetail inboundDetail = inboundOrderDetailRepository
-                .findById(label.getInboundOrderDetailId())
-                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
-
-        // 查找该入库明细对应的所有出库历史（按 sourceDetailId 关联）
+        // 优先通过看板ID精确查找出库历史
         List<OutboundHistory> histories = outboundHistoryRepository
-                .findBySourceDetailId(inboundDetail.getId());
+                .findByKanbanLabelId(label.getId());
+
+        // 兼容旧版出库（allocateFIFO 无 kanbanLabelId）：回退到按入库明细查找
+        if (histories.isEmpty()) {
+            InboundOrderDetail inboundDetail = inboundOrderDetailRepository
+                    .findById(label.getInboundOrderDetailId())
+                    .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+            histories = outboundHistoryRepository
+                    .findBySourceDetailId(inboundDetail.getId());
+        }
 
         if (histories.isEmpty()) {
             return new OutboundReturnLabelResponse(
@@ -906,9 +910,18 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
     public OutboundReturnResponse returnByScan(OutboundReturnRequest request, String operator) {
         InboundKanbanLabel label = findKanbanLabel(request.getKanbanNo());
 
-        // 通过看板ID精确查找出库历史
+        // 优先通过看板ID精确查找出库历史
         List<OutboundHistory> histories = outboundHistoryRepository
                 .findByKanbanLabelId(label.getId());
+
+        // 兼容旧版出库（allocateFIFO 无 kanbanLabelId）：回退到按入库明细查找
+        if (histories.isEmpty()) {
+            InboundOrderDetail inboundDetail = inboundOrderDetailRepository
+                    .findById(label.getInboundOrderDetailId())
+                    .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
+            histories = outboundHistoryRepository
+                    .findBySourceDetailId(inboundDetail.getId());
+        }
 
         OutboundHistory latestHistory = null;
         for (OutboundHistory h : histories) {
