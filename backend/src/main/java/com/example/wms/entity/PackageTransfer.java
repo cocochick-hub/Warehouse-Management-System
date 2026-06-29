@@ -61,4 +61,16 @@ public class PackageTransfer {
     /** 创建时间 */
     @Column(name = "created_at", nullable = false)
     private LocalDateTime createdAt;
+
+    /** 源出库单号（转包出库生成的出库单） */
+    @Column(name = "source_outbound_doc_no", length = 50)
+    private String sourceOutboundDocNo;
+
+    /** 目标入库单号（转包入库生成的新入库单） */
+    @Column(name = "target_inbound_doc_no", length = 50)
+    private String targetInboundDocNo;
+
+    /** 转包类型：拆包（向下转包）/ 合包（向上转包） */
+    @Column(name = "transfer_type", length = 20)
+    private String transferType;
 }

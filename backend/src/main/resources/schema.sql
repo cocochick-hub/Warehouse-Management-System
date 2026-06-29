@@ -251,6 +251,7 @@ CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     sealed                  TINYINT      DEFAULT 0 COMMENT '是否封存：0-否 1-是',
     sealed_at               DATETIME     DEFAULT NULL COMMENT '封存时间',
     sealed_by               VARCHAR(50)  DEFAULT NULL COMMENT '封存人',
+    frozen_qty              INT          DEFAULT 0 COMMENT '冻结量：封存时记录冻结数量',
     created_by              VARCHAR(50)  DEFAULT 'system' COMMENT '创建人',
     updated_by              VARCHAR(50)  DEFAULT 'system' COMMENT '更新人',
     created_at              DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
@@ -401,6 +402,10 @@ ALTER TABLE inbound_kanban_label
 ADD COLUMN sealed_by VARCHAR(50) DEFAULT NULL COMMENT '封存人'
 AFTER sealed_at;
 
+ALTER TABLE inbound_kanban_label
+ADD COLUMN frozen_qty INT DEFAULT 0 COMMENT '冻结量：封存时记录冻结数量'
+AFTER sealed_by;
+
 -- ============================================================================
 -- 11. AI 预警记录表
 -- ============================================================================
@@ -500,10 +505,25 @@ CREATE TABLE IF NOT EXISTS package_transfer (
     supplier_name       VARCHAR(100) COMMENT '供应商名称快照',
     operator            VARCHAR(50)  COMMENT '操作人',
     created_at          DATETIME     NOT NULL DEFAULT CURRENT_TIMESTAMP COMMENT '创建时间',
+    source_outbound_doc_no VARCHAR(50) DEFAULT NULL COMMENT '源出库单号',
+    target_inbound_doc_no  VARCHAR(50) DEFAULT NULL COMMENT '目标入库单号',
+    transfer_type       VARCHAR(20)  DEFAULT NULL COMMENT '转包类型：拆包/合包',
     KEY idx_package_transfer_source (source_kanban_no),
     KEY idx_package_transfer_target (target_kanban_no),
     KEY idx_package_transfer_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='转包操作记录表';
+
+ALTER TABLE package_transfer
+ADD COLUMN source_outbound_doc_no VARCHAR(50) DEFAULT NULL COMMENT '源出库单号'
+AFTER created_at;
+
+ALTER TABLE package_transfer
+ADD COLUMN target_inbound_doc_no VARCHAR(50) DEFAULT NULL COMMENT '目标入库单号'
+AFTER source_outbound_doc_no;
+
+ALTER TABLE package_transfer
+ADD COLUMN transfer_type VARCHAR(20) DEFAULT NULL COMMENT '转包类型：拆包/合包'
+AFTER target_inbound_doc_no;
 
 -- ============================================================================
 -- 18. 操作审计日志表

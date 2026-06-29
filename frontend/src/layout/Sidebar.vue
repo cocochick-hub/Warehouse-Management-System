@@ -87,6 +87,11 @@
         </el-menu-item>
       </el-sub-menu>
 
+      <el-menu-item index="/transfer">
+        <el-icon><RefreshRight /></el-icon>
+        <span>转包管理</span>
+      </el-menu-item>
+
       <el-sub-menu index="inventory">
         <template #title>
           <el-icon><DataBoard /></el-icon>
