@@ -291,6 +291,85 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     }
 
     @Override
+    @Transactional
+    public InboundOrderDetailResponse receiveByLabels(Long id, List<Long> labelIds, String operator) {
+        if (labelIds == null || labelIds.isEmpty()) {
+            throw new IllegalArgumentException("请选择待入库的看板");
+        }
+
+        InboundOrder order = findOrder(id);
+        if (STATUS_COMPLETED.equals(order.getStatus())) {
+            throw new IllegalStateException("已完成单据不允许再次入库");
+        }
+
+        // 查找所有看板并校验
+        List<InboundKanbanLabel> labels = inboundKanbanLabelRepository.findAllById(labelIds);
+        if (labels.isEmpty()) {
+            throw new IllegalArgumentException("未找到指定的看板");
+        }
+        if (labels.size() != labelIds.size()) {
+            throw new IllegalArgumentException("部分看板不存在");
+        }
+
+        // 校验：所有看板必须属于当前入库单且状态为"未入库"
+        for (InboundKanbanLabel label : labels) {
+            if (!label.getInboundOrderId().equals(id)) {
+                throw new IllegalArgumentException("看板 " + label.getKanbanNo() + " 不属于当前入库单");
+            }
+            if (!LABEL_STATUS_PENDING.equals(label.getLabelStatus())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已入库或状态异常");
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+
+        // 按明细ID分组统计入库数量
+        Map<Long, Integer> receiveQtyByDetailId = new HashMap<>();
+        for (InboundKanbanLabel label : labels) {
+            Long detailId = label.getInboundOrderDetailId();
+            int qty = safeInt(label.getLabelQty());
+            receiveQtyByDetailId.merge(detailId, qty, Integer::sum);
+        }
+
+        // 更新明细的已入库数量
+        List<InboundOrderDetail> allDetails = inboundOrderDetailRepository.findByInboundOrderIdOrderByLineNoAsc(id);
+        for (InboundOrderDetail detail : allDetails) {
+            Integer receiveQty = receiveQtyByDetailId.get(detail.getId());
+            if (receiveQty == null) {
+                continue;
+            }
+            int nextActualQty = safeInt(detail.getActualQty()) + receiveQty;
+            if (nextActualQty > safeInt(detail.getPlannedQty())) {
+                throw new IllegalArgumentException("物料 " + detail.getMaterialCode() + " 的累计实收数量不能大于计划数量");
+            }
+            detail.setActualQty(nextActualQty);
+            detail.setUpdatedBy(currentOperator);
+            detail.setUpdatedAt(now);
+        }
+        inboundOrderDetailRepository.saveAll(allDetails);
+
+        // 标记看板为"已入库"
+        for (InboundKanbanLabel label : labels) {
+            label.setLabelStatus(LABEL_STATUS_RECEIVED);
+            label.setReceivedAt(now);
+            label.setReceivedBy(currentOperator);
+            label.setUpdatedBy(currentOperator);
+            label.setUpdatedAt(now);
+        }
+        inboundKanbanLabelRepository.saveAll(labels);
+
+        // 更新库存
+        updateInventoryStocks(order, allDetails, receiveQtyByDetailId, currentOperator, now);
+
+        // 更新订单汇总
+        updateOrderSummary(order, allDetails, currentOperator, now);
+        inboundOrderRepository.save(order);
+
+        return new InboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(allDetails), toInventoryStockDTOs(order, allDetails));
+    }
+
+    @Override
     public InboundKanbanLabelDTO getScanLabel(String kanbanNoOrPayload) {
         InboundKanbanLabel label = findLabelByScanValue(kanbanNoOrPayload);
         return toKanbanLabelDTO(label);

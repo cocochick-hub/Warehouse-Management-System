@@ -1,7 +1,7 @@
 <template>
   <PageContainer title="手工入库">
     <el-alert
-      title="选择待入库单据后录入本次实际入库数量，系统会自动更新明细累计入库数量和单据状态。"
+      title="选择待入库单据后勾选待入库的看板，确认后自动更新明细累计入库数量和单据状态。"
       type="info"
       :closable="false"
       show-icon
@@ -87,6 +87,7 @@
     <InboundReceiveDialog
       v-model:visible="receiveVisible"
       :detail="currentDetail"
+      :pending-labels="pendingLabels"
       :submitting="submitting"
       @submit="handleSubmitReceive"
     />
@@ -99,7 +100,7 @@ import { useRoute, useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
 import InboundReceiveDialog from '@/components/inbound/InboundReceiveDialog.vue'
-import { getInboundOrderDetailApi, getInboundOrdersApi, receiveInboundOrderApi } from '@/api/inbound'
+import { getInboundOrderDetailApi, getInboundOrdersApi, getInboundKanbanLabelsApi, generateInboundKanbanLabelsApi, receiveInboundOrderByLabelsApi } from '@/api/inbound'
 import { formatDateTime, inboundStatusType } from '@/utils/inbound'
 
 const route = useRoute()
@@ -116,6 +117,7 @@ const submitting = ref(false)
 const tableData = ref([])
 const allRecords = ref([])
 const currentDetail = ref(null)
+const pendingLabels = ref([])
 const receiveVisible = ref(false)
 const pagination = reactive({
   page: 1,
@@ -194,12 +196,25 @@ async function handleOpenReceive(id) {
   try {
     const { data } = await getInboundOrderDetailApi(id)
     currentDetail.value = data
+    // 确保看板已生成，并获取待入库的看板
+    await generateInboundKanbanLabelsApi(id)
+    await fetchPendingLabels(id)
     receiveVisible.value = true
     if (route.query.orderId) {
       router.replace({ path: '/inbound/manual' })
     }
   } catch (error) {
     currentDetail.value = null
+    pendingLabels.value = []
+  }
+}
+
+async function fetchPendingLabels(orderId) {
+  try {
+    const { data: labels } = await getInboundKanbanLabelsApi(orderId)
+    pendingLabels.value = (labels || []).filter(l => l.labelStatus === '未入库')
+  } catch {
+    pendingLabels.value = []
   }
 }
 
@@ -210,7 +225,7 @@ async function handleSubmitReceive(payload) {
 
   submitting.value = true
   try {
-    const { data } = await receiveInboundOrderApi(currentDetail.value.order.id, payload)
+    const { data } = await receiveInboundOrderByLabelsApi(currentDetail.value.order.id, payload)
     currentDetail.value = data
     ElMessage.success(`入库提交成功，当前状态：${data.order.status}`)
     receiveVisible.value = false

@@ -5,6 +5,7 @@ import com.example.wms.dto.inbound.InboundOrderCreateRequest;
 import com.example.wms.dto.inbound.InboundOrderDetailResponse;
 import com.example.wms.dto.inbound.InboundOrderPageResponse;
 import com.example.wms.dto.inbound.InboundKanbanLabelDTO;
+import com.example.wms.dto.inbound.InboundReceiveByLabelRequest;
 import com.example.wms.dto.inbound.InboundReceiveRequest;
 import com.example.wms.service.InboundOrderService;
 import org.springframework.security.core.Authentication;
@@ -53,6 +54,15 @@ public class InboundOrderController {
             @Valid @RequestBody InboundReceiveRequest request
     ) {
         InboundOrderDetailResponse data = inboundOrderService.receiveOrder(id, request, currentUsername());
+        return ApiResult.success("手工入库成功", data);
+    }
+
+    @PostMapping("/{id}/receive-by-labels")
+    public ApiResult<InboundOrderDetailResponse> receiveByLabels(
+            @PathVariable Long id,
+            @Valid @RequestBody InboundReceiveByLabelRequest request
+    ) {
+        InboundOrderDetailResponse data = inboundOrderService.receiveByLabels(id, request.getLabelIds(), currentUsername());
         return ApiResult.success("手工入库成功", data);
     }
 
