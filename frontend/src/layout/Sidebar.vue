@@ -112,11 +112,7 @@
         <span>物料需求</span>
       </el-menu-item>
 
-      <el-menu-item index="/check">
-        <el-icon><Search /></el-icon>
-        <span>盘点任务</span>
-      </el-menu-item>
-
+      
       <el-menu-item index="/alert/threshold">
         <el-icon><WarningFilled /></el-icon>
         <span>高低储预警</span>
@@ -130,6 +126,11 @@
       <el-menu-item index="/audit">
         <el-icon><Document /></el-icon>
         <span>操作日志</span>
+      </el-menu-item>
+
+      <el-menu-item v-if="hasRole('admin')" index="/system/users">
+        <el-icon><UserFilled /></el-icon>
+        <span>用户权限</span>
       </el-menu-item>
 
       <el-menu-item index="/ai/chat">

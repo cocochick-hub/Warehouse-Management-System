@@ -267,6 +267,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 label.setPackageTotal(packageTotal);
                 label.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), DEFAULT_TRANSFER_STATUS));
                 label.setLabelStatus(LABEL_STATUS_PENDING);
+                label.setSealed(false);
                 label.setCreatedBy(currentOperator);
                 label.setUpdatedBy(currentOperator);
                 label.setCreatedAt(now);
@@ -668,6 +669,7 @@ public class InboundOrderServiceImpl implements InboundOrderService {
                 label.setPackageTotal(packageTotal);
                 label.setTransferStatus(defaultIfBlank(detail.getTransferStatus(), "不转包"));
                 label.setLabelStatus("已入库");
+                label.setSealed(false);
                 label.setReceivedAt(now);
                 label.setReceivedBy(operator);
                 label.setCreatedBy(operator);

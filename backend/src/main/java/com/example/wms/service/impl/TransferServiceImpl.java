@@ -203,7 +203,8 @@ public class TransferServiceImpl implements TransferService {
                 source.getSupplierName(),
                 stockArea,
                 now,
-                isMergeMode ? "合包" : "拆包"
+                isMergeMode ? "合包" : "拆包",
+                inboundDocNo
         );
     }
 
@@ -363,6 +364,7 @@ public class TransferServiceImpl implements TransferService {
         target.setPackageTotal(1);
         target.setLabelStatus("已入库");
         target.setTransferStatus("转入");
+        target.setSealed(false);
         target.setCreatedBy(operator);
         target.setUpdatedBy(operator);
         target.setCreatedAt(now);

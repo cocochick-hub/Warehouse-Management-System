@@ -65,7 +65,7 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             // 登录接口放行（无需认证）
             .antMatchers("/api/auth/login").permitAll()
-            // 物料管理 — 只有 admin 可以写
+// 物料管理 — 只有 admin 可以写
             .antMatchers(HttpMethod.POST, "/api/basic/materials").hasRole("admin")
             .antMatchers(HttpMethod.PUT, "/api/basic/materials/**").hasRole("admin")
             .antMatchers(HttpMethod.DELETE, "/api/basic/materials/**").hasRole("admin")

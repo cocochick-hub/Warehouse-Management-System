@@ -154,13 +154,7 @@ const routes = [
         component: () => import('@/views/demand/List.vue'),
         meta: { title: '物料需求' }
       },
-      {
-        path: 'check',
-        name: 'CheckTask',
-        component: () => import('@/views/check/TaskList.vue'),
-        meta: { title: '盘点任务' }
-      },
-      {
+            {
         path: 'alert/threshold',
         name: 'AlertThreshold',
         component: () => import('@/views/alert/Threshold.vue'),
@@ -180,6 +174,12 @@ const routes = [
         meta: { title: '操作日志', roles: ['admin', 'manager'] }
       },
       // AI 助手
+      {
+        path: 'system/users',
+        name: 'UserPermission',
+        component: () => import('@/views/system/UserPermission.vue'),
+        meta: { title: '用户权限管理', roles: ['admin'] }
+      },
       {
         path: 'ai/chat',
         name: 'AiChat',
@@ -210,18 +210,16 @@ router.beforeEach((to, from, next) => {
     if (to.path === '/login') {
       next('/dashboard')
     } else {
-      // 检查角色权限
-      const roles = to.meta.roles
-      if (roles && roles.length > 0) {
-        const userInfo = getUser()
-        const userRole = userInfo?.role
-        if (!roles.includes(userRole)) {
-          ElMessage.warning('无权限访问该页面')
-          next('/dashboard')
-          return
-        }
+// 角色权限检查：同时读取父级和子级路由 meta.roles。
+      const userInfo = getUser() || {}
+      const userRole = userInfo.role
+      const requiredRoles = to.matched.flatMap((record) => record.meta.roles || [])
+      if (requiredRoles.length > 0 && !requiredRoles.includes(userRole)) {
+        ElMessage.warning('无权限访问该页面')
+        next('/dashboard')
+      } else {
+        next()
       }
-      next()
     }
   } else {
     if (whiteList.includes(to.path)) {

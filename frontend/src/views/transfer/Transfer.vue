@@ -1,9 +1,43 @@
 <template>
   <PageContainer title="转包管理">
+    <template #actions>
+      <el-button type="primary" @click="openCreateTransfer">
+        <el-icon><Plus /></el-icon>新建转包
+      </el-button>
+      <el-button @click="openInboundCreate">
+        <el-icon><Plus /></el-icon>新建入库单
+      </el-button>
+    </template>
     <el-tabs v-model="activeTab" class="transfer-tabs">
       <!-- 创建转包 Tab -->
       <el-tab-pane label="创建转包" name="create">
         <!-- 搜索筛选 -->
+        <el-alert
+          class="workflow-alert"
+          type="info"
+          show-icon
+          :closable="false"
+          title="转包操作流程"
+          description="先选择或扫码源看板，再填写转包数量。目标看板号留空表示拆包并自动创建新看板；填写已存在的同物料看板号表示合包。"
+        />
+
+        <el-form inline class="quick-create-form">
+          <el-form-item label="源看板号">
+            <el-input
+              v-model="quickKanbanNo"
+              placeholder="扫码或输入源看板号"
+              clearable
+              style="width: 260px"
+              @keyup.enter="handleQuickSelect"
+            />
+          </el-form-item>
+          <el-form-item>
+            <el-button type="primary" :loading="quickLoading" @click="handleQuickSelect">
+              <el-icon><Aim /></el-icon>选择源看板
+            </el-button>
+          </el-form-item>
+        </el-form>
+
         <el-form :model="kanbanQuery" inline class="search-form">
           <el-form-item label="物料编码">
             <el-input v-model="kanbanQuery.materialCode" placeholder="物料编码" clearable style="width: 140px" />
@@ -182,11 +216,17 @@
         <el-descriptions-item label="源看板剩余数量">{{ transferResult.sourceRemainingQty }}</el-descriptions-item>
         <el-descriptions-item label="目标看板号">{{ transferResult.targetKanbanNo }}</el-descriptions-item>
         <el-descriptions-item label="目标看板数量">{{ transferResult.targetQty }}</el-descriptions-item>
+        <el-descriptions-item v-if="transferResult.targetInboundDocNo" label="目标入库单号">
+          {{ transferResult.targetInboundDocNo }}
+        </el-descriptions-item>
         <el-descriptions-item label="物料编码">{{ transferResult.materialCode }}</el-descriptions-item>
         <el-descriptions-item label="物料名称">{{ transferResult.materialName }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ transferResult.supplierName }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
+        <el-button v-if="transferResult.targetInboundDocNo" @click="goTargetInboundOrder">
+          查看目标入库单
+        </el-button>
         <el-button type="primary" @click="handleResultConfirm">确定</el-button>
       </template>
     </el-dialog>
@@ -195,11 +235,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
-import { listAvailableKanbans, listTransferHistory, executeTransfer } from '@/api/transfer'
+import { listAvailableKanbans, listTransferHistory, executeTransfer, getTransferLabel } from '@/api/transfer'
 
 const activeTab = ref('create')
+const router = useRouter()
 
 // ========== 看板列表相关 ==========
 const kanbanQuery = reactive({
@@ -214,6 +256,8 @@ const kanbanPagination = reactive({
   total: 0
 })
 const selectedKanban = ref(null)
+const quickKanbanNo = ref('')
+const quickLoading = ref(false)
 const transferForm = reactive({
   transferQty: 1,
   targetKanbanNo: ''
@@ -242,6 +286,36 @@ onMounted(() => {
 })
 
 // ========== 看板列表操作 ==========
+function openCreateTransfer() {
+  activeTab.value = 'create'
+}
+
+function openInboundCreate() {
+  router.push({
+    path: '/inbound/order',
+    query: { create: '1', transferStatus: '转包' }
+  })
+}
+
+async function handleQuickSelect() {
+  const kanbanNo = quickKanbanNo.value.trim()
+  if (!kanbanNo) {
+    ElMessage.warning('请输入源看板号')
+    return
+  }
+
+  quickLoading.value = true
+  try {
+    const { data } = await getTransferLabel(kanbanNo)
+    handleKanbanRowClick({
+      ...data,
+      availableQty: data.availableQty ?? data.labelQty
+    })
+  } finally {
+    quickLoading.value = false
+  }
+}
+
 async function fetchKanbans() {
   kanbanLoading.value = true
   try {
@@ -356,6 +430,15 @@ function handleResultConfirm() {
   fetchHistory()
 }
 
+function goTargetInboundOrder() {
+  const docNo = transferResult.value.targetInboundDocNo
+  resultVisible.value = false
+  router.push({
+    path: '/inbound/order',
+    query: docNo ? { docNo } : undefined
+  })
+}
+
 // ========== 历史记录操作 ==========
 async function fetchHistory() {
   historyLoading.value = true
@@ -427,6 +510,14 @@ function transferStatusType(status) {
 
 .search-form {
   margin-bottom: 16px;
+}
+
+.workflow-alert {
+  margin-bottom: 16px;
+}
+
+.quick-create-form {
+  margin-bottom: 8px;
 }
 
 .transfer-card {

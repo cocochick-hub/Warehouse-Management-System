@@ -43,4 +43,7 @@ public class TransferResultDTO {
 
     /** 转包类型：拆包 / 合包 */
     private String transferType;
+
+    /** Target inbound order document number created or reused by transfer. */
+    private String targetInboundDocNo;
 }

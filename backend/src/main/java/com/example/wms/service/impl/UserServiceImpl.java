@@ -4,6 +4,8 @@ import com.example.wms.config.JwtUtil;
 import com.example.wms.dto.LoginRequest;
 import com.example.wms.dto.LoginResponse;
 import com.example.wms.dto.UserInfoDTO;
+import com.example.wms.dto.admin.CreateUserRequest;
+import com.example.wms.dto.admin.ManagedUserDTO;
 import com.example.wms.entity.SysUser;
 import com.example.wms.repository.UserRepository;
 import com.example.wms.service.UserService;
@@ -12,6 +14,11 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * 用户认证服务实现
@@ -24,6 +31,8 @@ import org.springframework.transaction.annotation.Transactional;
  */
 @Service
 public class UserServiceImpl implements UserService {
+
+    private static final Set<String> ALLOWED_ROLES = Set.of("admin", "manager", "operator");
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
@@ -116,6 +125,91 @@ public class UserServiceImpl implements UserService {
                 user.getRole(),
                 user.getAvatar(),
                 user.getPhone()
+        );
+    }
+
+    @Override
+    public List<ManagedUserDTO> listManagedUsers() {
+        return userRepository.findAll().stream()
+                .sorted(Comparator.comparing(SysUser::getId))
+                .map(this::toManagedUserDTO)
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    @Transactional
+    public ManagedUserDTO createUser(CreateUserRequest request) {
+        String username = request.getUsername().trim();
+        if (userRepository.existsByUsername(username)) {
+            throw new IllegalArgumentException("用户名已存在");
+        }
+
+        SysUser user = new SysUser();
+        user.setUsername(username);
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setRealName(trimToNull(request.getRealName()));
+        user.setRole(normalizeRole(request.getRole()));
+        user.setStatus(1);
+        user.setPhone(trimToNull(request.getPhone()));
+        user.setCreatedBy("admin");
+        user.setUpdatedBy("admin");
+
+        return toManagedUserDTO(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public ManagedUserDTO updateUserRole(Long id, String role) {
+        SysUser user = getUserById(id);
+        user.setRole(normalizeRole(role));
+        user.setUpdatedBy("admin");
+        return toManagedUserDTO(userRepository.save(user));
+    }
+
+    @Override
+    @Transactional
+    public ManagedUserDTO updateUserStatus(Long id, Integer status) {
+        if (status == null || (status != 0 && status != 1)) {
+            throw new IllegalArgumentException("用户状态只能是启用或禁用");
+        }
+
+        SysUser user = getUserById(id);
+        user.setStatus(status);
+        user.setUpdatedBy("admin");
+        return toManagedUserDTO(userRepository.save(user));
+    }
+
+    private SysUser getUserById(Long id) {
+        return userRepository.findById(id)
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在"));
+    }
+
+    private String normalizeRole(String role) {
+        String normalized = role == null ? "" : role.trim();
+        if (!ALLOWED_ROLES.contains(normalized)) {
+            throw new IllegalArgumentException("角色只能是 admin、manager 或 operator");
+        }
+        return normalized;
+    }
+
+    private String trimToNull(String value) {
+        if (value == null) {
+            return null;
+        }
+        String trimmed = value.trim();
+        return trimmed.isEmpty() ? null : trimmed;
+    }
+
+    private ManagedUserDTO toManagedUserDTO(SysUser user) {
+        return new ManagedUserDTO(
+                user.getId(),
+                user.getUsername(),
+                user.getRealName(),
+                user.getRole(),
+                user.getStatus(),
+                user.getPhone(),
+                user.getCreatedAt(),
+                user.getUpdatedAt()
         );
     }
 }
