@@ -100,7 +100,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import { useRouter, useRoute } from 'vue-router'
 import PageContainer from '@/components/PageContainer.vue'
@@ -142,8 +142,22 @@ const pagination = reactive({
 })
 
 onMounted(() => {
+  openCreateDialogFromQuery()
   fetchOrders()
 })
+
+watch(
+  () => route.query.create,
+  () => {
+    openCreateDialogFromQuery()
+  }
+)
+
+function openCreateDialogFromQuery() {
+  if (route.query.create === '1') {
+    createVisible.value = true
+  }
+}
 
 async function fetchOrders() {
   loading.value = true

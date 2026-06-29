@@ -203,7 +203,8 @@ public class TransferServiceImpl implements TransferService {
                 source.getSupplierName(),
                 stockArea,
                 now,
-                isMergeMode ? "合包" : "拆包"
+                isMergeMode ? "合包" : "拆包",
+                inboundDocNo
         );
     }
 

@@ -4,6 +4,9 @@
       <el-button type="primary" @click="openCreateTransfer">
         <el-icon><Plus /></el-icon>新建转包
       </el-button>
+      <el-button @click="openInboundCreate">
+        <el-icon><Plus /></el-icon>新建入库单
+      </el-button>
     </template>
     <el-tabs v-model="activeTab" class="transfer-tabs">
       <!-- 创建转包 Tab -->
@@ -213,11 +216,17 @@
         <el-descriptions-item label="源看板剩余数量">{{ transferResult.sourceRemainingQty }}</el-descriptions-item>
         <el-descriptions-item label="目标看板号">{{ transferResult.targetKanbanNo }}</el-descriptions-item>
         <el-descriptions-item label="目标看板数量">{{ transferResult.targetQty }}</el-descriptions-item>
+        <el-descriptions-item v-if="transferResult.targetInboundDocNo" label="目标入库单号">
+          {{ transferResult.targetInboundDocNo }}
+        </el-descriptions-item>
         <el-descriptions-item label="物料编码">{{ transferResult.materialCode }}</el-descriptions-item>
         <el-descriptions-item label="物料名称">{{ transferResult.materialName }}</el-descriptions-item>
         <el-descriptions-item label="供应商">{{ transferResult.supplierName }}</el-descriptions-item>
       </el-descriptions>
       <template #footer>
+        <el-button v-if="transferResult.targetInboundDocNo" @click="goTargetInboundOrder">
+          查看目标入库单
+        </el-button>
         <el-button type="primary" @click="handleResultConfirm">确定</el-button>
       </template>
     </el-dialog>
@@ -226,11 +235,13 @@
 
 <script setup>
 import { onMounted, reactive, ref } from 'vue'
+import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
 import { listAvailableKanbans, listTransferHistory, executeTransfer, getTransferLabel } from '@/api/transfer'
 
 const activeTab = ref('create')
+const router = useRouter()
 
 // ========== 看板列表相关 ==========
 const kanbanQuery = reactive({
@@ -277,6 +288,13 @@ onMounted(() => {
 // ========== 看板列表操作 ==========
 function openCreateTransfer() {
   activeTab.value = 'create'
+}
+
+function openInboundCreate() {
+  router.push({
+    path: '/inbound/order',
+    query: { create: '1', transferStatus: '转包' }
+  })
 }
 
 async function handleQuickSelect() {
@@ -410,6 +428,15 @@ function handleResultConfirm() {
   // 切换到历史Tab
   activeTab.value = 'history'
   fetchHistory()
+}
+
+function goTargetInboundOrder() {
+  const docNo = transferResult.value.targetInboundDocNo
+  resultVisible.value = false
+  router.push({
+    path: '/inbound/order',
+    query: docNo ? { docNo } : undefined
+  })
 }
 
 // ========== 历史记录操作 ==========

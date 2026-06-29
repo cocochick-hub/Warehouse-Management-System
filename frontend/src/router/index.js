@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getToken } from '@/utils/auth'
+import { getToken, getUser } from '@/utils/auth'
 import { ElMessage } from 'element-plus'
 
 const routes = [
@@ -216,11 +216,11 @@ router.beforeEach((to, from, next) => {
     if (to.path === '/login') {
       next('/dashboard')
     } else {
-      // 角色权限检查
-      const userInfo = JSON.parse(localStorage.getItem('wms_user_info') || '{}')
+      // 角色权限检查：同时读取父级和子级路由 meta.roles。
+      const userInfo = getUser() || {}
       const userRole = userInfo.role
-      const requiredRoles = to.meta.roles
-      if (requiredRoles && !requiredRoles.includes(userRole)) {
+      const requiredRoles = to.matched.flatMap((record) => record.meta.roles || [])
+      if (requiredRoles.length > 0 && !requiredRoles.includes(userRole)) {
         ElMessage.warning('无权限访问该页面')
         next('/dashboard')
       } else {
