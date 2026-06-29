@@ -63,9 +63,12 @@ public class SealServiceImpl implements SealService {
             throw new IllegalStateException("只有已入库的看板才能封存/解封，当前状态: " + label.getLabelStatus());
         }
 
+        if (action == null || (!"seal".equals(action) && !"unseal".equals(action))) {
+            throw new IllegalArgumentException("操作类型无效，请指定 seal 或 unseal");
+        }
+
         LocalDateTime now = LocalDateTime.now();
         boolean seal = "seal".equals(action);
-
         if (seal) {
             if (Boolean.TRUE.equals(label.getSealed())) {
                 throw new IllegalStateException("该看板已被封存，无需重复操作");
@@ -73,6 +76,7 @@ public class SealServiceImpl implements SealService {
             label.setSealed(true);
             label.setSealedAt(now);
             label.setSealedBy(operator);
+            label.setFrozenQty(label.getLabelQty()); // 封存时记录冻结量
         } else {
             if (!Boolean.TRUE.equals(label.getSealed())) {
                 throw new IllegalStateException("该看板未被封存，无需解封");
@@ -80,6 +84,7 @@ public class SealServiceImpl implements SealService {
             label.setSealed(false);
             label.setSealedAt(null);
             label.setSealedBy(null);
+            label.setFrozenQty(0); // 解封时清零冻结量
         }
 
         label.setUpdatedBy(operator);

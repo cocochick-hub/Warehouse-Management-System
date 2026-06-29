@@ -123,6 +123,13 @@ const routes = [
           }
         ]
       },
+      // 转包管理
+      {
+        path: 'transfer',
+        name: 'Transfer',
+        component: () => import('@/views/transfer/Transfer.vue'),
+        meta: { title: '转包管理' }
+      },
       {
         path: 'inventory',
         meta: { title: '库存管理' },

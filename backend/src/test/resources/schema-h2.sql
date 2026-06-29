@@ -164,6 +164,7 @@ CREATE TABLE IF NOT EXISTS outbound_order (
     item_count        INT          NOT NULL DEFAULT 0,
     planned_total_qty INT          NOT NULL DEFAULT 0,
     actual_total_qty  INT          NOT NULL DEFAULT 0,
+    outbound_type     VARCHAR(20)  DEFAULT '带单出库',
     remark            VARCHAR(255) DEFAULT NULL,
     created_by        VARCHAR(50)  DEFAULT 'system',
     updated_by        VARCHAR(50)  DEFAULT 'system',
@@ -236,6 +237,7 @@ CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     sealed                  BOOLEAN      DEFAULT FALSE,
     sealed_at               TIMESTAMP    DEFAULT NULL,
     sealed_by               VARCHAR(50)  DEFAULT NULL,
+    frozen_qty              INT          DEFAULT 0,
     created_by              VARCHAR(50)  DEFAULT 'system',
     updated_by              VARCHAR(50)  DEFAULT 'system',
     created_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -327,7 +329,10 @@ CREATE TABLE IF NOT EXISTS package_transfer (
     material_name       VARCHAR(100) NOT NULL,
     supplier_name       VARCHAR(100),
     operator            VARCHAR(50),
-    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source_outbound_doc_no VARCHAR(50)  DEFAULT NULL,
+    target_inbound_doc_no VARCHAR(50)  DEFAULT NULL,
+    transfer_type       VARCHAR(20)  DEFAULT NULL
 );
 
 -- 18. 操作审计日志表
