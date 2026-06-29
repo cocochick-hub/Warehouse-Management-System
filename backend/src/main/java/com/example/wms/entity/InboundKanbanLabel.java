@@ -79,7 +79,7 @@ public class InboundKanbanLabel extends BaseEntity {
     private String receivedBy;
 
     @Column(name = "sealed")
-    private Boolean sealed;
+    private Boolean sealed = false;
 
     @Column(name = "sealed_at")
     private LocalDateTime sealedAt;

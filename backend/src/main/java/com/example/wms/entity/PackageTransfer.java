@@ -23,11 +23,11 @@ public class PackageTransfer {
     private Long id;
 
     /** 源看板号 */
-    @Column(name = "source_kanban_no", nullable = false)
+    @Column(name = "source_kanban_no", nullable = false, length = 100)
     private String sourceKanbanNo;
 
     /** 目标看板号（新生成的看板号） */
-    @Column(name = "target_kanban_no", nullable = false)
+    @Column(name = "target_kanban_no", nullable = false, length = 100)
     private String targetKanbanNo;
 
     /** 转移数量 */

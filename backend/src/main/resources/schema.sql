@@ -495,8 +495,8 @@ CREATE TABLE IF NOT EXISTS alert_threshold (
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS package_transfer (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    source_kanban_no    VARCHAR(50)  NOT NULL COMMENT '源看板号',
-    target_kanban_no    VARCHAR(50)  NOT NULL COMMENT '目标看板号（新看板号）',
+    source_kanban_no    VARCHAR(100) NOT NULL COMMENT '源看板号',
+    target_kanban_no    VARCHAR(100) NOT NULL COMMENT '目标看板号（新看板号）',
     transfer_qty        INT          NOT NULL COMMENT '转移数量',
     source_qty_before   INT          NOT NULL COMMENT '转移前源看板可用数量',
     source_qty_after    INT          NOT NULL COMMENT '转移后源看板可用数量',
@@ -512,6 +512,22 @@ CREATE TABLE IF NOT EXISTS package_transfer (
     KEY idx_package_transfer_target (target_kanban_no),
     KEY idx_package_transfer_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='转包操作记录表';
+
+-- 兼容旧库：早期 package_transfer 表已存在时，CREATE TABLE IF NOT EXISTS 不会补新增字段。
+ALTER TABLE package_transfer
+ADD COLUMN source_outbound_doc_no VARCHAR(50) DEFAULT NULL COMMENT '源出库单号';
+
+ALTER TABLE package_transfer
+ADD COLUMN target_inbound_doc_no VARCHAR(50) DEFAULT NULL COMMENT '目标入库单号';
+
+ALTER TABLE package_transfer
+ADD COLUMN transfer_type VARCHAR(20) DEFAULT NULL COMMENT '转包类型：拆包/合包';
+
+ALTER TABLE package_transfer
+MODIFY COLUMN source_kanban_no VARCHAR(100) NOT NULL COMMENT '源看板号';
+
+ALTER TABLE package_transfer
+MODIFY COLUMN target_kanban_no VARCHAR(100) NOT NULL COMMENT '目标看板号（新看板号）';
 
 -- ============================================================================
 -- 18. 操作审计日志表

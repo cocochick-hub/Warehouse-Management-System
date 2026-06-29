@@ -320,8 +320,8 @@ CREATE TABLE IF NOT EXISTS alert_threshold (
 -- 17. 转包记录表
 CREATE TABLE IF NOT EXISTS package_transfer (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    source_kanban_no    VARCHAR(50)  NOT NULL,
-    target_kanban_no    VARCHAR(50)  NOT NULL,
+    source_kanban_no    VARCHAR(100) NOT NULL,
+    target_kanban_no    VARCHAR(100) NOT NULL,
     transfer_qty        INT          NOT NULL,
     source_qty_before   INT          NOT NULL,
     source_qty_after    INT          NOT NULL,

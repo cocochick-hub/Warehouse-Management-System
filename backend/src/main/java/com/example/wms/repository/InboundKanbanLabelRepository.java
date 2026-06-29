@@ -65,15 +65,24 @@ public interface InboundKanbanLabelRepository extends JpaRepository<InboundKanba
     List<InboundKanbanLabel> findBySealedTrue();
 
     /** 分页查询已入库且未封存的看板（可按物料编码和供应商名称筛选） */
-    Page<InboundKanbanLabel> findByLabelStatusAndSealedFalse(String labelStatus, Pageable pageable);
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL)")
+    Page<InboundKanbanLabel> findByLabelStatusAndSealedFalse(@Param("labelStatus") String labelStatus, Pageable pageable);
 
     /** 分页查询已入库且未封存的看板（按物料编码筛选） */
-    Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndMaterialCodeContaining(String labelStatus, String materialCode, Pageable pageable);
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND k.materialCode LIKE CONCAT('%', :materialCode, '%')")
+    Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndMaterialCodeContaining(
+            @Param("labelStatus") String labelStatus, @Param("materialCode") String materialCode, Pageable pageable);
 
     /** 分页查询已入库且未封存的看板（按供应商名称筛选） */
-    Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndSupplierNameContaining(String labelStatus, String supplierName, Pageable pageable);
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND k.supplierName LIKE CONCAT('%', :supplierName, '%')")
+    Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndSupplierNameContaining(
+            @Param("labelStatus") String labelStatus, @Param("supplierName") String supplierName, Pageable pageable);
 
     /** 分页查询已入库且未封存的看板（按物料编码和供应商名称筛选） */
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND k.materialCode LIKE CONCAT('%', :materialCode, '%') AND k.supplierName LIKE CONCAT('%', :supplierName, '%')")
     Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndMaterialCodeContainingAndSupplierNameContaining(
-            String labelStatus, String materialCode, String supplierName, Pageable pageable);
+            @Param("labelStatus") String labelStatus,
+            @Param("materialCode") String materialCode,
+            @Param("supplierName") String supplierName,
+            Pageable pageable);
 }
