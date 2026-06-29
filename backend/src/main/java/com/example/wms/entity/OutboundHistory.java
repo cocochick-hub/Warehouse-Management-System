@@ -43,6 +43,9 @@ public class OutboundHistory {
     @Column(name = "source_detail_id")
     private Long sourceDetailId;
 
+    @Column(name = "kanban_label_id")
+    private Long kanbanLabelId;
+
     @Column(name = "warehouse_area", length = 100)
     private String warehouseArea = "默认库区";
 

@@ -68,3 +68,33 @@ export function doReturn(data) {
     data
   })
 }
+
+export function getAvailableKanbanLabels(orderId) {
+  return request({
+    url: `/outbound/orders/${orderId}/available-kanban-labels`,
+    method: 'get'
+  })
+}
+
+export function issueByLabels(orderId, data) {
+  return request({
+    url: `/outbound/orders/${orderId}/issue-by-labels`,
+    method: 'post',
+    data
+  })
+}
+
+export function getIssuedLabels(orderId) {
+  return request({
+    url: `/outbound/orders/${orderId}/issued-labels`,
+    method: 'get'
+  })
+}
+
+export function returnByLabels(orderId, data) {
+  return request({
+    url: `/outbound/orders/${orderId}/return-by-labels`,
+    method: 'post',
+    data
+  })
+}

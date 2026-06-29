@@ -380,6 +380,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         history.setIssueQty(issueQty);
         history.setSourceInboundDoc(inboundDetail.getDocNo());
         history.setSourceDetailId(inboundDetail.getId());
+        history.setKanbanLabelId(label.getId());
         history.setWarehouseArea(warehouseArea);
         history.setIssuedBy(currentOperator);
         history.setStatus("已出库");
@@ -905,24 +906,24 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
     public OutboundReturnResponse returnByScan(OutboundReturnRequest request, String operator) {
         InboundKanbanLabel label = findKanbanLabel(request.getKanbanNo());
 
-        InboundOrderDetail inboundDetail = inboundOrderDetailRepository
-                .findById(label.getInboundOrderDetailId())
-                .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
-
+        // 通过看板ID精确查找出库历史
         List<OutboundHistory> histories = outboundHistoryRepository
-                .findBySourceDetailId(inboundDetail.getId());
+                .findByKanbanLabelId(label.getId());
 
-        if (histories.isEmpty()) {
-            throw new IllegalStateException("该看板对应的物料未被出库过");
+        OutboundHistory latestHistory = null;
+        for (OutboundHistory h : histories) {
+            if (!STATUS_RETURNED.equals(h.getStatus())) {
+                latestHistory = h;
+                break;
+            }
         }
 
-        OutboundHistory latestHistory = histories.stream()
-                .filter(h -> h.getCreatedAt() != null)
-                .max((a, b) -> a.getCreatedAt().compareTo(b.getCreatedAt()))
-                .orElse(histories.get(0));
-
-        if (STATUS_RETURNED.equals(latestHistory.getStatus())) {
-            throw new IllegalStateException("该看板已退库，无法重复退库");
+        if (latestHistory == null) {
+            if (histories.isEmpty()) {
+                throw new IllegalStateException("该看板未被出库过");
+            } else {
+                throw new IllegalStateException("该看板已退库，无法重复退库");
+            }
         }
 
         int returnQty = safeInt(latestHistory.getIssueQty());
@@ -963,11 +964,26 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         label.setTransferStatus(null);
         inboundKanbanLabelRepository.save(label);
 
-        // 3. 检查出库单是否全部退库
+        // 3. 更新出库明细实发数量（退库后扣减）
+        OutboundOrderDetail outboundDetail = outboundOrderDetailRepository
+                .findById(latestHistory.getOutboundDetailId()).orElse(null);
+        if (outboundDetail != null) {
+            int newActualQty = Math.max(safeInt(outboundDetail.getActualQty()) - returnQty, 0);
+            outboundDetail.setActualQty(newActualQty);
+            outboundDetail.setUpdatedBy(normalizeOperator(operator));
+            outboundDetail.setUpdatedAt(LocalDateTime.now());
+            outboundOrderDetailRepository.save(outboundDetail);
+        }
+
+        // 4. 重新计算出库单状态
         OutboundOrder order = outboundOrderRepository.findById(latestHistory.getOutboundOrderId()).orElse(null);
         if (order != null) {
             List<OutboundOrderDetail> orderDetails = outboundOrderDetailRepository
                     .findByOutboundOrderIdOrderByLineNoAsc(order.getId());
+            int plannedTotal = orderDetails.stream().mapToInt(d -> safeInt(d.getPlannedQty())).sum();
+            int actualTotal = orderDetails.stream().mapToInt(d -> safeInt(d.getActualQty())).sum();
+
+            // 判断是否全部退库
             boolean allReturned = true;
             for (OutboundOrderDetail detail : orderDetails) {
                 List<OutboundHistory> detailHistories = outboundHistoryRepository
@@ -979,12 +995,18 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                     break;
                 }
             }
+
+            order.setPlannedTotalQty(plannedTotal);
+            order.setActualTotalQty(actualTotal);
             if (allReturned) {
                 order.setStatus(STATUS_RETURNED);
-                order.setUpdatedBy(normalizeOperator(operator));
-                order.setUpdatedAt(LocalDateTime.now());
-                outboundOrderRepository.save(order);
+            } else {
+                order.setStatus(calculateStatus(plannedTotal, actualTotal));
+                // 退库后出库单恢复为可操作状态，允许继续出库
             }
+            order.setUpdatedBy(normalizeOperator(operator));
+            order.setUpdatedAt(LocalDateTime.now());
+            outboundOrderRepository.save(order);
         }
 
         return new OutboundReturnResponse(
@@ -992,5 +1014,445 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 label.getMaterialCode(),
                 returnQty,
                 safeInt(stock.getOnHandQty()));
+    }
+
+    @Override
+    public List<OutboundKanbanLabelDTO> getAvailableKanbanLabels(Long orderId) {
+        OutboundOrder order = findOrder(orderId);
+        List<OutboundOrderDetail> details = outboundOrderDetailRepository
+                .findByOutboundOrderIdOrderByLineNoAsc(orderId);
+        if (details.isEmpty()) {
+            return Collections.emptyList();
+        }
+
+        // 对每个明细行，按 (materialCode, supplierName) 查可用看板
+        List<OutboundKanbanLabelDTO> result = new ArrayList<>();
+        Set<Long> seenLabelIds = new HashSet<>();
+
+        for (OutboundOrderDetail detail : details) {
+            List<InboundKanbanLabel> labels = inboundKanbanLabelRepository
+                    .findByMaterialCodeAndSupplierNameOrderByCreatedAtAsc(
+                            detail.getMaterialCode(), detail.getSupplierName());
+
+            for (InboundKanbanLabel label : labels) {
+                // 只显示已入库、未封存、未出库/转包的看板
+                if (!LABEL_STATUS_RECEIVED.equals(label.getLabelStatus())) {
+                    continue;
+                }
+                if (Boolean.TRUE.equals(label.getSealed())) {
+                    continue;
+                }
+                if (TRANSFER_STATUS_ISSUED.equals(label.getTransferStatus())
+                        || "已转包".equals(label.getTransferStatus())
+                        || "转包".equals(label.getTransferStatus())) {
+                    continue;
+                }
+                // 去重（同一看板可能被多条明细匹配到，取第一条）
+                if (!seenLabelIds.add(label.getId())) {
+                    continue;
+                }
+
+                // 计算可用数量
+                List<OutboundHistory> consumed = outboundHistoryRepository
+                        .findBySourceDetailId(label.getInboundOrderDetailId());
+                int consumedQty = consumed.stream()
+                        .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
+                        .mapToInt(h -> safeInt(h.getIssueQty())).sum();
+                int sealedQty = calculateSealedQty(label.getInboundOrderDetailId());
+                InboundOrderDetail inboundDetail = inboundOrderDetailRepository
+                        .findById(label.getInboundOrderDetailId()).orElse(null);
+                int inboundActual = inboundDetail != null ? safeInt(inboundDetail.getActualQty()) : 0;
+                int availableQty = Math.max(inboundActual - consumedQty - sealedQty, 0);
+
+                int pendingQty = Math.max(safeInt(detail.getPlannedQty()) - safeInt(detail.getActualQty()), 0);
+
+                OutboundKanbanLabelDTO dto = new OutboundKanbanLabelDTO();
+                dto.setId(label.getId());
+                dto.setKanbanNo(label.getKanbanNo());
+                dto.setDocNo(label.getDocNo());
+                dto.setMaterialCode(label.getMaterialCode());
+                dto.setMaterialName(label.getMaterialName());
+                dto.setSupplierCode(label.getSupplierCode());
+                dto.setSupplierName(label.getSupplierName());
+                dto.setLabelQty(safeInt(label.getLabelQty()));
+                dto.setAvailableQty(availableQty);
+                dto.setPackageSeq(label.getPackageSeq());
+                dto.setPackageTotal(label.getPackageTotal());
+                dto.setWarehouseArea(label.getWarehouseArea());
+                dto.setLabelStatus(label.getLabelStatus());
+                dto.setTransferStatus(label.getTransferStatus());
+                dto.setInboundOrderId(label.getInboundOrderId());
+                dto.setInboundOrderDetailId(label.getInboundOrderDetailId());
+                dto.setSealed(label.getSealed());
+                dto.setCreatedAt(label.getCreatedAt());
+                dto.setMatchedOutboundDetailId(detail.getId());
+                dto.setMatchedDetailInfo(detail.getMaterialCode()
+                        + " plannedQty=" + safeInt(detail.getPlannedQty())
+                        + " actualQty=" + safeInt(detail.getActualQty())
+                        + " pendingQty=" + pendingQty);
+                result.add(dto);
+            }
+        }
+
+        // 按入库明细创建时间 ASC 排序（FIFO），再按 packageSeq ASC
+        result.sort(Comparator.comparing(OutboundKanbanLabelDTO::getCreatedAt,
+                Comparator.nullsLast(Comparator.naturalOrder()))
+                .thenComparingInt(dto -> dto.getPackageSeq() != null ? dto.getPackageSeq() : 0));
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public OutboundOrderDetailResponse issueByLabels(Long orderId, List<Long> labelIds, String operator) {
+        if (labelIds == null || labelIds.isEmpty()) {
+            throw new IllegalArgumentException("出库看板不能为空");
+        }
+
+        // 1. 查出库单，验证状态
+        OutboundOrder order = findOrder(orderId);
+        if (STATUS_COMPLETED.equals(order.getStatus())) {
+            throw new IllegalStateException("已完成单据不允许再次出库");
+        }
+
+        // 2. 查出库单所有明细行
+        List<OutboundOrderDetail> details = outboundOrderDetailRepository
+                .findByOutboundOrderIdOrderByLineNoAsc(orderId);
+        if (details.isEmpty()) {
+            throw new IllegalStateException("当前出库单缺少明细，无法执行出库");
+        }
+
+        // 3. 查所有看板并验证
+        List<InboundKanbanLabel> labels = inboundKanbanLabelRepository.findAllById(labelIds);
+        if (labels.size() != labelIds.size()) {
+            throw new IllegalArgumentException("存在无效的看板ID");
+        }
+
+        for (InboundKanbanLabel label : labels) {
+            if (!LABEL_STATUS_RECEIVED.equals(label.getLabelStatus())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 尚未完成入库，无法出库");
+            }
+            if (TRANSFER_STATUS_ISSUED.equals(label.getTransferStatus())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已出库，无法重复出库");
+            }
+            if (Boolean.TRUE.equals(label.getSealed())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已被封存，无法出库");
+            }
+            if ("已转包".equals(label.getTransferStatus())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已全量转包，无法出库");
+            }
+            if ("转包".equals(label.getTransferStatus())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已被部分转包，不允许直接出库");
+            }
+        }
+
+        // 4. 按 (materialCode, supplierName) 匹配看板到出库明细行
+        Map<Long, OutboundOrderDetail> detailMap = new HashMap<>();
+        Map<Long, List<InboundKanbanLabel>> detailLabelsMap = new HashMap<>();
+        for (InboundKanbanLabel label : labels) {
+            OutboundOrderDetail matched = null;
+            for (OutboundOrderDetail detail : details) {
+                if (label.getMaterialCode().equals(detail.getMaterialCode())
+                        && label.getSupplierName().equals(detail.getSupplierName())) {
+                    matched = detail;
+                    break;
+                }
+            }
+            if (matched == null) {
+                throw new IllegalArgumentException(
+                        "出库单中未找到与看板 " + label.getKanbanNo()
+                        + "（物料：" + label.getMaterialCode()
+                        + "，需求方：" + label.getSupplierName() + "）匹配的明细行");
+            }
+            detailMap.putIfAbsent(matched.getId(), matched);
+            detailLabelsMap.computeIfAbsent(matched.getId(), k -> new ArrayList<>()).add(label);
+        }
+
+        // 5. 校验每个明细行的选中看板总数量不超过待出库数量
+        for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
+            OutboundOrderDetail detail = detailMap.get(entry.getKey());
+            int totalSelectedQty = entry.getValue().stream()
+                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+            int pendingQty = safeInt(detail.getPlannedQty()) - safeInt(detail.getActualQty());
+            if (totalSelectedQty > pendingQty) {
+                throw new IllegalArgumentException(
+                        "物料 " + detail.getMaterialCode() + " 的本次出库数 " + totalSelectedQty
+                        + " 超过待出库数 " + pendingQty);
+            }
+        }
+
+        // 6. 验证库存总量充足（跨库区）
+        for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
+            OutboundOrderDetail detail = detailMap.get(entry.getKey());
+            int totalIssueQty = entry.getValue().stream()
+                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+            List<InventoryStock> areaStocks = inventoryStockRepository
+                    .findAllByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName());
+            int totalOnHand = areaStocks.stream().mapToInt(s -> safeInt(s.getOnHandQty())).sum();
+            if (totalOnHand < totalIssueQty) {
+                throw new IllegalStateException(
+                        "物料 " + detail.getMaterialCode() + "（需求方 " + detail.getSupplierName()
+                        + "）当前总库存 " + totalOnHand + "，不足 " + totalIssueQty);
+            }
+        }
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+
+        // 7. 为每个看板创建出库历史记录
+        List<OutboundHistory> historyRecords = new ArrayList<>();
+        for (InboundKanbanLabel label : labels) {
+            OutboundOrderDetail detail = detailMap.get(
+                    detailLabelsMap.entrySet().stream()
+                            .filter(e -> e.getValue().contains(label))
+                            .findFirst().get().getKey());
+
+            int issueQty = safeInt(label.getLabelQty());
+            String warehouseArea = defaultIfBlank(label.getWarehouseArea(),
+                    defaultIfBlank(detail.getWarehouseArea(), "默认库区"));
+
+            OutboundHistory history = new OutboundHistory();
+            history.setOutboundOrderId(order.getId());
+            history.setOutboundDetailId(detail.getId());
+            history.setDocNo(order.getDocNo());
+            history.setMaterialCode(detail.getMaterialCode());
+            history.setMaterialName(detail.getMaterialName());
+            history.setSupplierName(detail.getSupplierName());
+            history.setIssueQty(issueQty);
+            history.setSourceInboundDoc(label.getDocNo());
+            history.setSourceDetailId(label.getInboundOrderDetailId());
+            history.setKanbanLabelId(label.getId());
+            history.setWarehouseArea(warehouseArea);
+            history.setIssuedBy(currentOperator);
+            history.setStatus("已出库");
+            history.setCreatedAt(now);
+            historyRecords.add(history);
+        }
+        outboundHistoryRepository.saveAll(historyRecords);
+
+        // 8. 按看板库区扣减库存
+        for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
+            OutboundOrderDetail detail = detailMap.get(entry.getKey());
+            int totalIssueQty = entry.getValue().stream()
+                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+
+            List<InventoryStock> areaStocks = inventoryStockRepository
+                    .findAllByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName());
+            int toDeduct = totalIssueQty;
+            for (InventoryStock areaStock : areaStocks) {
+                if (toDeduct <= 0) break;
+                int deduct = Math.min(safeInt(areaStock.getOnHandQty()), toDeduct);
+                areaStock.setOnHandQty(safeInt(areaStock.getOnHandQty()) - deduct);
+                areaStock.setUpdatedBy(currentOperator);
+                areaStock.setUpdatedAt(now);
+                inventoryStockRepository.save(areaStock);
+                toDeduct -= deduct;
+            }
+        }
+
+        // 9. 标记看板为已出库
+        for (InboundKanbanLabel label : labels) {
+            label.setTransferStatus(TRANSFER_STATUS_ISSUED);
+        }
+        inboundKanbanLabelRepository.saveAll(labels);
+
+        // 10. 更新出库明细 actualQty
+        for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
+            OutboundOrderDetail detail = detailMap.get(entry.getKey());
+            int totalIssueQty = entry.getValue().stream()
+                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+            detail.setActualQty(safeInt(detail.getActualQty()) + totalIssueQty);
+            detail.setUpdatedBy(currentOperator);
+            detail.setUpdatedAt(now);
+        }
+        outboundOrderDetailRepository.saveAll(details);
+
+        // 11. 重新计算出库单汇总状态
+        List<OutboundOrderDetail> updatedDetails = outboundOrderDetailRepository
+                .findByOutboundOrderIdOrderByLineNoAsc(orderId);
+        order.setItemCount(updatedDetails.size());
+        order.setPlannedTotalQty(updatedDetails.stream().mapToInt(item -> safeInt(item.getPlannedQty())).sum());
+        order.setActualTotalQty(updatedDetails.stream().mapToInt(item -> safeInt(item.getActualQty())).sum());
+        order.setStatus(calculateStatus(order.getPlannedTotalQty(), order.getActualTotalQty()));
+        order.setUpdatedBy(currentOperator);
+        order.setUpdatedAt(now);
+        outboundOrderRepository.save(order);
+
+        return new OutboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(updatedDetails),
+                toInventoryStockDTOs(updatedDetails));
+    }
+
+    @Override
+    public List<OutboundIssuedLabelDTO> getIssuedLabels(Long orderId) {
+        OutboundOrder order = findOrder(orderId);
+        List<OutboundHistory> histories = outboundHistoryRepository.findByOutboundOrderId(orderId);
+
+        List<OutboundIssuedLabelDTO> result = new ArrayList<>();
+        for (OutboundHistory history : histories) {
+            // 只显示已出库未退库的
+            if (!"已出库".equals(history.getStatus())) {
+                continue;
+            }
+            // 通过 kanbanLabelId 查看看板
+            if (history.getKanbanLabelId() == null) {
+                continue;
+            }
+            InboundKanbanLabel label = inboundKanbanLabelRepository
+                    .findById(history.getKanbanLabelId()).orElse(null);
+            if (label == null) {
+                continue;
+            }
+
+            OutboundIssuedLabelDTO dto = new OutboundIssuedLabelDTO();
+            dto.setLabelId(label.getId());
+            dto.setKanbanNo(label.getKanbanNo());
+            dto.setMaterialCode(label.getMaterialCode());
+            dto.setMaterialName(label.getMaterialName());
+            dto.setSupplierName(label.getSupplierName());
+            dto.setLabelQty(safeInt(label.getLabelQty()));
+            dto.setHistoryId(history.getId());
+            dto.setIssueQty(safeInt(history.getIssueQty()));
+            dto.setIssuedAt(history.getCreatedAt());
+            dto.setSourceInboundDoc(history.getSourceInboundDoc());
+            dto.setWarehouseArea(label.getWarehouseArea());
+            dto.setOutboundDetailId(history.getOutboundDetailId());
+            result.add(dto);
+        }
+
+        return result;
+    }
+
+    @Override
+    @Transactional
+    public OutboundOrderDetailResponse returnByLabels(Long orderId, List<Long> labelIds, String operator) {
+        if (labelIds == null || labelIds.isEmpty()) {
+            throw new IllegalArgumentException("退库看板不能为空");
+        }
+
+        OutboundOrder order = findOrder(orderId);
+
+        // 查出库单所有明细行
+        List<OutboundOrderDetail> details = outboundOrderDetailRepository
+                .findByOutboundOrderIdOrderByLineNoAsc(orderId);
+
+        LocalDateTime now = LocalDateTime.now();
+        String currentOperator = normalizeOperator(operator);
+
+        // 按出库明细分组统计退库数量
+        Map<Long, Integer> detailReturnQtyMap = new HashMap<>();
+        Map<Long, OutboundOrderDetail> detailMap = new HashMap<>();
+        for (OutboundOrderDetail d : details) {
+            detailMap.put(d.getId(), d);
+        }
+
+        for (Long labelId : labelIds) {
+            InboundKanbanLabel label = inboundKanbanLabelRepository.findById(labelId).orElse(null);
+            if (label == null) {
+                throw new IllegalArgumentException("看板不存在：" + labelId);
+            }
+            if (!TRANSFER_STATUS_ISSUED.equals(label.getTransferStatus())) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 不是已出库状态，无法退库");
+            }
+
+            // 通过 kanbanLabelId 精确查找出库历史
+            List<OutboundHistory> labelHistories = outboundHistoryRepository
+                    .findByKanbanLabelId(labelId);
+            OutboundHistory target = null;
+            for (OutboundHistory h : labelHistories) {
+                if ("已出库".equals(h.getStatus())) {
+                    target = h;
+                    break;
+                }
+            }
+            if (target == null) {
+                throw new IllegalStateException("看板 " + label.getKanbanNo() + " 未找到对应的出库记录或已退库");
+            }
+
+            int returnQty = safeInt(target.getIssueQty());
+
+            // 库存回增
+            String returnArea = defaultIfBlank(label.getWarehouseArea(), "默认库区");
+            InventoryStock stock = inventoryStockRepository
+                    .findByMaterialCodeAndSupplierAndWarehouseArea(
+                            label.getMaterialCode(), label.getSupplierName(), returnArea)
+                    .orElse(null);
+            if (stock == null) {
+                stock = new InventoryStock();
+                stock.setMaterialCode(label.getMaterialCode());
+                stock.setMaterialName(label.getMaterialName());
+                stock.setSupplier(label.getSupplierName());
+                stock.setOnHandQty(returnQty);
+                stock.setLastInboundDocNo(target.getDocNo());
+                stock.setLastInboundAt(now);
+                stock.setWarehouseArea(label.getWarehouseArea());
+                stock.setTransferStatus("不转包");
+                stock.setCreatedBy(currentOperator);
+                stock.setUpdatedBy(currentOperator);
+                stock.setCreatedAt(now);
+                stock.setUpdatedAt(now);
+            } else {
+                stock.setOnHandQty(safeInt(stock.getOnHandQty()) + returnQty);
+                stock.setUpdatedBy(currentOperator);
+                stock.setUpdatedAt(now);
+            }
+            inventoryStockRepository.save(stock);
+
+            // 出库历史标记已退库
+            target.setStatus(STATUS_RETURNED);
+            outboundHistoryRepository.save(target);
+
+            // 看板标签恢复
+            label.setLabelStatus(LABEL_STATUS_RECEIVED);
+            label.setTransferStatus(null);
+            inboundKanbanLabelRepository.save(label);
+
+            // 统计退库数量
+            Long detailId = target.getOutboundDetailId();
+            detailReturnQtyMap.merge(detailId, returnQty, Integer::sum);
+        }
+
+        // 更新出库明细实发数量
+        for (Map.Entry<Long, Integer> entry : detailReturnQtyMap.entrySet()) {
+            OutboundOrderDetail detail = detailMap.get(entry.getKey());
+            if (detail != null) {
+                int newActualQty = Math.max(safeInt(detail.getActualQty()) - entry.getValue(), 0);
+                detail.setActualQty(newActualQty);
+                detail.setUpdatedBy(currentOperator);
+                detail.setUpdatedAt(now);
+            }
+        }
+        outboundOrderDetailRepository.saveAll(details);
+
+        // 重新计算出库单汇总状态
+        List<OutboundOrderDetail> updatedDetails = outboundOrderDetailRepository
+                .findByOutboundOrderIdOrderByLineNoAsc(orderId);
+        int plannedTotal = updatedDetails.stream().mapToInt(d -> safeInt(d.getPlannedQty())).sum();
+        int actualTotal = updatedDetails.stream().mapToInt(d -> safeInt(d.getActualQty())).sum();
+
+        boolean allReturned = true;
+        for (OutboundOrderDetail detail : updatedDetails) {
+            List<OutboundHistory> detailHistories = outboundHistoryRepository
+                    .findByOutboundDetailId(detail.getId());
+            boolean thisLineAllReturned = detailHistories.stream()
+                    .allMatch(h -> STATUS_RETURNED.equals(h.getStatus()));
+            if (!thisLineAllReturned) {
+                allReturned = false;
+                break;
+            }
+        }
+
+        order.setPlannedTotalQty(plannedTotal);
+        order.setActualTotalQty(actualTotal);
+        if (allReturned) {
+            order.setStatus(STATUS_RETURNED);
+        } else {
+            order.setStatus(calculateStatus(plannedTotal, actualTotal));
+        }
+        order.setUpdatedBy(currentOperator);
+        order.setUpdatedAt(now);
+        outboundOrderRepository.save(order);
+
+        return new OutboundOrderDetailResponse(toSummaryDTO(order), toDetailDTOs(updatedDetails),
+                toInventoryStockDTOs(updatedDetails));
     }
 }
