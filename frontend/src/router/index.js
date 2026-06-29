@@ -154,13 +154,7 @@ const routes = [
         component: () => import('@/views/demand/List.vue'),
         meta: { title: '物料需求' }
       },
-      {
-        path: 'check',
-        name: 'CheckTask',
-        component: () => import('@/views/check/TaskList.vue'),
-        meta: { title: '盘点任务' }
-      },
-      {
+            {
         path: 'alert/threshold',
         name: 'AlertThreshold',
         component: () => import('@/views/alert/Threshold.vue'),

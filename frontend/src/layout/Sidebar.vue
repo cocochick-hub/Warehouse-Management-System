@@ -112,11 +112,7 @@
         <span>物料需求</span>
       </el-menu-item>
 
-      <el-menu-item index="/check">
-        <el-icon><Search /></el-icon>
-        <span>盘点任务</span>
-      </el-menu-item>
-
+      
       <el-menu-item index="/alert/threshold">
         <el-icon><WarningFilled /></el-icon>
         <span>高低储预警</span>
