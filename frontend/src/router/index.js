@@ -1,5 +1,6 @@
 import { createRouter, createWebHistory } from 'vue-router'
 import { getToken } from '@/utils/auth'
+import { ElMessage } from 'element-plus'
 
 const routes = [
   {
@@ -122,6 +123,13 @@ const routes = [
           }
         ]
       },
+      // 转包管理
+      {
+        path: 'transfer',
+        name: 'Transfer',
+        component: () => import('@/views/transfer/Transfer.vue'),
+        meta: { title: '转包管理' }
+      },
       {
         path: 'inventory',
         meta: { title: '库存管理' },
@@ -147,6 +155,12 @@ const routes = [
         meta: { title: '物料需求' }
       },
       {
+        path: 'check',
+        name: 'CheckTask',
+        component: () => import('@/views/check/TaskList.vue'),
+        meta: { title: '盘点任务' }
+      },
+      {
         path: 'alert/threshold',
         name: 'AlertThreshold',
         component: () => import('@/views/alert/Threshold.vue'),
@@ -157,6 +171,13 @@ const routes = [
         name: 'SealManagement',
         component: () => import('@/views/seal/SealManagement.vue'),
         meta: { title: '封存管理' }
+      },
+      // 操作日志
+      {
+        path: 'audit',
+        name: 'AuditLog',
+        component: () => import('@/views/audit/AuditLog.vue'),
+        meta: { title: '操作日志', roles: ['admin', 'manager'] }
       },
       // AI 助手
       {
@@ -189,7 +210,16 @@ router.beforeEach((to, from, next) => {
     if (to.path === '/login') {
       next('/dashboard')
     } else {
-      next()
+      // 角色权限检查
+      const userInfo = JSON.parse(localStorage.getItem('wms_user_info') || '{}')
+      const userRole = userInfo.role
+      const requiredRoles = to.meta.roles
+      if (requiredRoles && !requiredRoles.includes(userRole)) {
+        ElMessage.warning('无权限访问该页面')
+        next('/dashboard')
+      } else {
+        next()
+      }
     }
   } else {
     if (whiteList.includes(to.path)) {

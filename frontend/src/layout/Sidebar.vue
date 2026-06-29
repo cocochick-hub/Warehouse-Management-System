@@ -87,6 +87,11 @@
         </el-menu-item>
       </el-sub-menu>
 
+      <el-menu-item index="/transfer">
+        <el-icon><RefreshRight /></el-icon>
+        <span>转包管理</span>
+      </el-menu-item>
+
       <el-sub-menu index="inventory">
         <template #title>
           <el-icon><DataBoard /></el-icon>
@@ -107,6 +112,11 @@
         <span>物料需求</span>
       </el-menu-item>
 
+      <el-menu-item index="/check">
+        <el-icon><Search /></el-icon>
+        <span>盘点任务</span>
+      </el-menu-item>
+
       <el-menu-item index="/alert/threshold">
         <el-icon><WarningFilled /></el-icon>
         <span>高低储预警</span>
@@ -115,6 +125,11 @@
       <el-menu-item index="/seal">
         <el-icon><Lock /></el-icon>
         <span>封存管理</span>
+      </el-menu-item>
+
+      <el-menu-item index="/audit">
+        <el-icon><Document /></el-icon>
+        <span>操作日志</span>
       </el-menu-item>
 
       <el-menu-item index="/ai/chat">

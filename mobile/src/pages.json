@@ -45,6 +45,30 @@
       }
     },
     {
+      "path": "pages/seal/index",
+      "style": {
+        "navigationBarTitleText": "封存/解封"
+      }
+    },
+    {
+      "path": "pages/transfer/index",
+      "style": {
+        "navigationBarTitleText": "转包"
+      }
+    },
+    {
+      "path": "pages/check/index",
+      "style": {
+        "navigationBarTitleText": "盘点"
+      }
+    },
+    {
+      "path": "pages/check/detail",
+      "style": {
+        "navigationBarTitleText": "盘点明细"
+      }
+    },
+    {
       "path": "pages/settings/index",
       "style": {
         "navigationBarTitleText": "设置"

@@ -307,6 +307,12 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         if (Boolean.TRUE.equals(label.getSealed())) {
             throw new IllegalStateException("该看板已被封存，无法出库，请先解封");
         }
+        if ("已转包".equals(label.getTransferStatus())) {
+            throw new IllegalStateException("该看板已全量转包，无法出库");
+        }
+        if ("转包".equals(label.getTransferStatus())) {
+            throw new IllegalStateException("该看板已被部分转包，不允许直接出库");
+        }
 
         OutboundOrder order;
         if (request.getOutboundOrderId() != null) {

@@ -22,7 +22,8 @@ import { ref, onMounted } from 'vue'
 import { Button, Icon } from 'vant'
 
 const props = defineProps({
-  placeholder: { type: String, default: '请输入或扫码看板号' }
+  placeholder: { type: String, default: '请输入或扫码看板号' },
+  autoscan: { type: Boolean, default: true }
 })
 
 const emit = defineEmits(['scan'])
@@ -71,9 +72,11 @@ function triggerAutoScan() {
 
 // 进入页面自动弹出扫码（延时等页面过渡动画完成）
 onMounted(() => {
-  setTimeout(() => {
-    triggerAutoScan()
-  }, 300)
+  if (props.autoscan) {
+    setTimeout(() => {
+      triggerAutoScan()
+    }, 300)
+  }
 })
 
 defineExpose({

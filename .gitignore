@@ -34,3 +34,12 @@ logs/
 # Local scripts
 *.bat
 .run/WmsApplication.run.xml
+
+# Spring Boot local profile (contains real secrets)
+application-local.yml
+
+# Dev iteration documents (internal only)
+docs/dev-iterations/
+
+# uni-app build output
+mobile/unpackage/
