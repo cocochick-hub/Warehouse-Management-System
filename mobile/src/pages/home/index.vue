@@ -35,9 +35,10 @@ const menuItems = [
   { label: '扫码出库', icon: 'delete-o', color: '#ee0a24', path: '/pages/outbound-scan/index' },
   { label: '带单出库', icon: 'orders-o', color: '#ff976a', path: '/pages/outbound-order/index' },
   { label: '退库', icon: 'revoke', color: '#1989fa', path: '/pages/return/index' },
-  { label: '转包', icon: 'exchange', color: '#9e9e9e', path: '' },
-  { label: '封存', icon: 'lock', color: '#9e9e9e', path: '' },
-  { label: '解封', icon: 'unlock', color: '#9e9e9e', path: '' },
+  { label: '转包', icon: 'exchange', color: '#ff976a', path: '/pages/transfer/index' },
+  { label: '封存', icon: 'lock', color: '#9e9e9e', path: '/pages/seal/index' },
+  { label: '解封', icon: 'unlock', color: '#9e9e9e', path: '/pages/seal/index' },
+  { label: '盘点', icon: 'search', color: '#1989fa', path: '/pages/check/index' },
 ]
 
 function navigateTo(path) {

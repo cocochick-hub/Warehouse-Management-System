@@ -101,6 +101,7 @@ CREATE TABLE IF NOT EXISTS inbound_order (
     item_count        INT          NOT NULL DEFAULT 0,
     planned_total_qty INT          NOT NULL DEFAULT 0,
     actual_total_qty  INT          NOT NULL DEFAULT 0,
+    transfer_status   VARCHAR(20)  DEFAULT '不转包',
     remark            VARCHAR(255) DEFAULT NULL,
     created_by        VARCHAR(50)  DEFAULT 'system',
     updated_by        VARCHAR(50)  DEFAULT 'system',
@@ -163,6 +164,7 @@ CREATE TABLE IF NOT EXISTS outbound_order (
     item_count        INT          NOT NULL DEFAULT 0,
     planned_total_qty INT          NOT NULL DEFAULT 0,
     actual_total_qty  INT          NOT NULL DEFAULT 0,
+    outbound_type     VARCHAR(20)  DEFAULT '带单出库',
     remark            VARCHAR(255) DEFAULT NULL,
     created_by        VARCHAR(50)  DEFAULT 'system',
     updated_by        VARCHAR(50)  DEFAULT 'system',
@@ -194,8 +196,8 @@ CREATE TABLE IF NOT EXISTS outbound_order_detail (
 
 CREATE TABLE IF NOT EXISTS outbound_history (
     id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
-    outbound_order_id   BIGINT       NOT NULL,
-    outbound_detail_id  BIGINT       NOT NULL,
+    outbound_order_id   BIGINT       DEFAULT NULL,
+    outbound_detail_id  BIGINT       DEFAULT NULL,
     doc_no              VARCHAR(50)  NOT NULL,
     material_code       VARCHAR(50)  NOT NULL,
     material_name       VARCHAR(100) NOT NULL,
@@ -210,8 +212,7 @@ CREATE TABLE IF NOT EXISTS outbound_history (
     FOREIGN KEY (outbound_order_id) REFERENCES outbound_order (id)
 );
 
--- 9. 看板标签表（简化版）
-DROP TABLE IF EXISTS inbound_kanban_label;
+-- 9. 看板标签表
 CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     id                      BIGINT AUTO_INCREMENT PRIMARY KEY,
     inbound_order_id        BIGINT       NOT NULL,
@@ -236,6 +237,7 @@ CREATE TABLE IF NOT EXISTS inbound_kanban_label (
     sealed                  BOOLEAN      DEFAULT FALSE,
     sealed_at               TIMESTAMP    DEFAULT NULL,
     sealed_by               VARCHAR(50)  DEFAULT NULL,
+    frozen_qty              INT          DEFAULT 0,
     created_by              VARCHAR(50)  DEFAULT 'system',
     updated_by              VARCHAR(50)  DEFAULT 'system',
     created_at              TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
@@ -313,4 +315,67 @@ CREATE TABLE IF NOT EXISTS alert_threshold (
     created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
     UNIQUE (material_code, supplier)
+);
+
+-- 17. 转包记录表
+CREATE TABLE IF NOT EXISTS package_transfer (
+    id                  BIGINT AUTO_INCREMENT PRIMARY KEY,
+    source_kanban_no    VARCHAR(50)  NOT NULL,
+    target_kanban_no    VARCHAR(50)  NOT NULL,
+    transfer_qty        INT          NOT NULL,
+    source_qty_before   INT          NOT NULL,
+    source_qty_after    INT          NOT NULL,
+    material_code       VARCHAR(50)  NOT NULL,
+    material_name       VARCHAR(100) NOT NULL,
+    supplier_name       VARCHAR(100),
+    operator            VARCHAR(50),
+    created_at          TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    source_outbound_doc_no VARCHAR(50)  DEFAULT NULL,
+    target_inbound_doc_no VARCHAR(50)  DEFAULT NULL,
+    transfer_type       VARCHAR(20)  DEFAULT NULL
+);
+
+-- 18. 操作审计日志表
+CREATE TABLE IF NOT EXISTS audit_log (
+    id            BIGINT AUTO_INCREMENT PRIMARY KEY,
+    username      VARCHAR(50)   NOT NULL,
+    action        VARCHAR(20)   NOT NULL,
+    target        VARCHAR(100)  NOT NULL,
+    target_id     VARCHAR(50),
+    detail        TEXT,
+    ip            VARCHAR(50),
+    created_at    TIMESTAMP     NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 19. 盘点任务表
+CREATE TABLE IF NOT EXISTS inventory_check_task (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_no         VARCHAR(50)  NOT NULL UNIQUE,
+    task_name       VARCHAR(100) NOT NULL,
+    check_type      VARCHAR(20)  NOT NULL DEFAULT '明盘',
+    status          VARCHAR(20)  NOT NULL DEFAULT '进行中',
+    warehouse_area  VARCHAR(100),
+    material_code   VARCHAR(50),
+    created_by      VARCHAR(50),
+    completed_at    TIMESTAMP,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    updated_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+-- 20. 盘点明细表
+CREATE TABLE IF NOT EXISTS inventory_check_detail (
+    id              BIGINT AUTO_INCREMENT PRIMARY KEY,
+    task_id         BIGINT       NOT NULL,
+    task_no         VARCHAR(50)  NOT NULL,
+    material_code   VARCHAR(50)  NOT NULL,
+    material_name   VARCHAR(100) NOT NULL,
+    supplier        VARCHAR(100) NOT NULL,
+    warehouse_area  VARCHAR(100),
+    system_qty      INT          NOT NULL DEFAULT 0,
+    actual_qty      INT,
+    diff_qty        INT,
+    status          VARCHAR(20)  NOT NULL DEFAULT '待盘',
+    checked_by      VARCHAR(50),
+    checked_at      TIMESTAMP,
+    created_at      TIMESTAMP    NOT NULL DEFAULT CURRENT_TIMESTAMP
 );

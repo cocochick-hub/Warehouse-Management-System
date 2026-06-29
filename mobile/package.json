@@ -4,12 +4,16 @@
   "private": true,
   "scripts": {
     "dev:app": "uni -p app",
-    "build:app": "uni build -p app"
+    "dev:h5": "uni -p h5",
+    "dev:mp-weixin": "uni -p mp-weixin",
+    "build:app": "uni build -p app",
+    "build:h5": "uni build -p h5",
+    "build:mp-weixin": "uni build -p mp-weixin"
   },
   "dependencies": {
-    "vue": "^3.4.0",
     "pinia": "^2.1.0",
-    "vant": "^4.9.0"
+    "vant": "^4.9.0",
+    "vue": "^3.4.0"
   },
   "devDependencies": {
     "@dcloudio/uni-app": "3.0.0-alpha-1000920260615733",
@@ -17,7 +21,7 @@
     "@dcloudio/uni-components": "3.0.0-alpha-1000920260615733",
     "@dcloudio/uni-h5": "3.0.0-alpha-1000920260615733",
     "@dcloudio/uni-mp-weixin": "3.0.0-alpha-1000920260615733",
-    "vite": "7.3.3",
-    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-1000920260615733"
+    "@dcloudio/vite-plugin-uni": "3.0.0-alpha-1000920260615733",
+    "vite": "7.3.3"
   }
 }

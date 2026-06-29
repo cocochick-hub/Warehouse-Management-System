@@ -20,6 +20,7 @@ spring:
       mode: always
       continue-on-error: true
       encoding: UTF-8
+      schema-locations: classpath:schema-h2.sql
 
 jwt:
   secret: WmsJwtSecretKey2026WarehouseManagementSystemByTest
