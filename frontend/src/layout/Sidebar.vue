@@ -18,7 +18,7 @@
         <span>仪表盘</span>
       </el-menu-item>
 
-      <el-sub-menu v-if="hasRole('admin', 'manager')" index="basic">
+      <el-sub-menu index="basic">
         <template #title>
           <el-icon><FolderOpened /></el-icon>
           <span>基础信息</span>

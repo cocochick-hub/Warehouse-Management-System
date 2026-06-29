@@ -59,14 +59,27 @@ public class SecurityConfig extends WebSecurityConfigurerAdapter {
             .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
             .and()
 
-            // 4. 配置请求权限
+            // 4. 配置请求权限（角色由高到低，精确匹配在前）
             .authorizeRequests()
             // 放行 OPTIONS 预检请求
             .antMatchers(HttpMethod.OPTIONS, "/**").permitAll()
             // 登录接口放行（无需认证）
             .antMatchers("/api/auth/login").permitAll()
-            .antMatchers("/api/admin/**").hasRole("admin")
-            // 其他所有请求需要认证
+// 物料管理 — 只有 admin 可以写
+            .antMatchers(HttpMethod.POST, "/api/basic/materials").hasRole("admin")
+            .antMatchers(HttpMethod.PUT, "/api/basic/materials/**").hasRole("admin")
+            .antMatchers(HttpMethod.DELETE, "/api/basic/materials/**").hasRole("admin")
+            // 包装/供应商/库区管理 — admin 和 manager 可以写
+            .antMatchers(HttpMethod.POST, "/api/basic/packaging").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.PUT, "/api/basic/packaging/**").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.DELETE, "/api/basic/packaging/**").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.POST, "/api/basic/suppliers").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.PUT, "/api/basic/suppliers/**").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.DELETE, "/api/basic/suppliers/**").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.POST, "/api/basic/warehouse-areas").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.PUT, "/api/basic/warehouse-areas/**").hasAnyRole("admin", "manager")
+            .antMatchers(HttpMethod.DELETE, "/api/basic/warehouse-areas/**").hasAnyRole("admin", "manager")
+            // 其他所有请求（含 GET 请求）只需认证即可
             .anyRequest().authenticated()
             .and()
 

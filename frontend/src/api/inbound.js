@@ -31,6 +31,14 @@ export function receiveInboundOrderApi(id, data) {
   })
 }
 
+export function receiveInboundOrderByLabelsApi(id, data) {
+  return request({
+    url: `/inbound/orders/${id}/receive-by-labels`,
+    method: 'post',
+    data
+  })
+}
+
 export function generateInboundKanbanLabelsApi(id) {
   return request({
     url: `/inbound/orders/${id}/kanban-labels/generate`,

@@ -23,6 +23,8 @@ public interface InboundOrderService {
 
     List<InboundKanbanLabelDTO> listKanbanLabels(Long id);
 
+    InboundOrderDetailResponse receiveByLabels(Long id, List<Long> labelIds, String operator);
+
     InboundKanbanLabelDTO getScanLabel(String kanbanNoOrPayload);
 
     InboundOrderDetailResponse receiveByScan(InboundScanReceiveRequest request, String operator);

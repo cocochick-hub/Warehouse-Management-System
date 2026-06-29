@@ -11,9 +11,27 @@ public interface BasicDataService {
 
     List<SupplierOptionDTO> listSuppliers();
 
+    SupplierOptionDTO createSupplier(SupplierOptionDTO dto);
+
+    SupplierOptionDTO updateSupplier(Long id, SupplierOptionDTO dto);
+
+    void deleteSupplier(Long id);
+
     List<MaterialOptionDTO> listMaterials(String supplierCode);
 
+    MaterialOptionDTO createMaterial(MaterialOptionDTO dto);
+
+    MaterialOptionDTO updateMaterial(Long id, MaterialOptionDTO dto);
+
+    void deleteMaterial(Long id);
+
     List<PackagingInfoDTO> listPackagingInfos();
+
+    PackagingInfoDTO createPackaging(PackagingInfoDTO dto);
+
+    PackagingInfoDTO updatePackaging(Long id, PackagingInfoDTO dto);
+
+    void deletePackaging(Long id);
 
     List<WarehouseAreaDTO> listWarehouseAreas();
 
