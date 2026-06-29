@@ -39,18 +39,49 @@ public class BasicDataServiceImpl implements BasicDataService {
         this.warehouseAreaRepository = warehouseAreaRepository;
     }
 
+    // ==================== 供应商管理 ====================
+
     @Override
     public List<SupplierOptionDTO> listSuppliers() {
         return supplierInfoRepository.findAllByOrderBySupplierCodeAsc().stream()
-                .map(item -> new SupplierOptionDTO(
-                        item.getId(),
-                        item.getSupplierCode(),
-                        item.getSupplierName(),
-                        item.getContact(),
-                        item.getPhone()
-                ))
+                .map(this::toSupplierDTO)
                 .collect(Collectors.toList());
     }
+
+    @Override
+    public SupplierOptionDTO createSupplier(SupplierOptionDTO dto) {
+        SupplierInfo entity = new SupplierInfo();
+        entity.setSupplierCode(dto.getSupplierCode());
+        entity.setSupplierName(dto.getSupplierName());
+        entity.setContact(dto.getContact());
+        entity.setPhone(dto.getPhone());
+        LocalDateTime now = LocalDateTime.now();
+        entity.setCreatedBy("system");
+        entity.setUpdatedBy("system");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        return toSupplierDTO(supplierInfoRepository.save(entity));
+    }
+
+    @Override
+    public SupplierOptionDTO updateSupplier(Long id, SupplierOptionDTO dto) {
+        SupplierInfo entity = supplierInfoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("供应商不存在"));
+        entity.setSupplierName(dto.getSupplierName());
+        entity.setContact(dto.getContact());
+        entity.setPhone(dto.getPhone());
+        return toSupplierDTO(supplierInfoRepository.save(entity));
+    }
+
+    @Override
+    public void deleteSupplier(Long id) {
+        if (!supplierInfoRepository.existsById(id)) {
+            throw new EntityNotFoundException("供应商不存在");
+        }
+        supplierInfoRepository.deleteById(id);
+    }
+
+    // ==================== 物料管理 ====================
 
     @Override
     public List<MaterialOptionDTO> listMaterials(String supplierCode) {
@@ -80,28 +111,91 @@ public class BasicDataServiceImpl implements BasicDataService {
     }
 
     @Override
+    public MaterialOptionDTO createMaterial(MaterialOptionDTO dto) {
+        MaterialInfo entity = new MaterialInfo();
+        entity.setMaterialNo(dto.getMaterialNo());
+        entity.setMaterialName(dto.getMaterialName());
+        entity.setMaterialType(dto.getMaterialType());
+        entity.setUnit(dto.getUnit());
+        entity.setSupplierCode(dto.getSupplierCode());
+        entity.setSupplierName(dto.getSupplierName());
+        LocalDateTime now = LocalDateTime.now();
+        entity.setCreatedBy("system");
+        entity.setUpdatedBy("system");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        MaterialInfo saved = materialInfoRepository.save(entity);
+        return toMaterialDTO(saved);
+    }
+
+    @Override
+    public MaterialOptionDTO updateMaterial(Long id, MaterialOptionDTO dto) {
+        MaterialInfo entity = materialInfoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("物料不存在"));
+        entity.setMaterialName(dto.getMaterialName());
+        entity.setMaterialType(dto.getMaterialType());
+        entity.setUnit(dto.getUnit());
+        entity.setSupplierCode(dto.getSupplierCode());
+        entity.setSupplierName(dto.getSupplierName());
+        MaterialInfo saved = materialInfoRepository.save(entity);
+        return toMaterialDTO(saved);
+    }
+
+    @Override
+    public void deleteMaterial(Long id) {
+        if (!materialInfoRepository.existsById(id)) {
+            throw new EntityNotFoundException("物料不存在");
+        }
+        materialInfoRepository.deleteById(id);
+    }
+
+    // ==================== 包装管理 ====================
+
+    @Override
     public List<PackagingInfoDTO> listPackagingInfos() {
         return packagingInfoRepository.findAllByOrderByMaterialNoAsc().stream()
-                .map(item -> new PackagingInfoDTO(
-                        item.getId(),
-                        item.getMaterialNo(),
-                        item.getSupplierCode(),
-                        item.getPackageModel(),
-                        item.getPackageCapacity()
-                ))
+                .map(this::toPackagingDTO)
                 .collect(Collectors.toList());
     }
 
     @Override
+    public PackagingInfoDTO createPackaging(PackagingInfoDTO dto) {
+        PackagingInfo entity = new PackagingInfo();
+        entity.setMaterialNo(dto.getMaterialNo());
+        entity.setSupplierCode(dto.getSupplierCode());
+        entity.setPackageModel(dto.getPackageModel());
+        entity.setPackageCapacity(dto.getPackageCapacity());
+        LocalDateTime now = LocalDateTime.now();
+        entity.setCreatedBy("system");
+        entity.setUpdatedBy("system");
+        entity.setCreatedAt(now);
+        entity.setUpdatedAt(now);
+        return toPackagingDTO(packagingInfoRepository.save(entity));
+    }
+
+    @Override
+    public PackagingInfoDTO updatePackaging(Long id, PackagingInfoDTO dto) {
+        PackagingInfo entity = packagingInfoRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("包装信息不存在"));
+        entity.setPackageModel(dto.getPackageModel());
+        entity.setPackageCapacity(dto.getPackageCapacity());
+        return toPackagingDTO(packagingInfoRepository.save(entity));
+    }
+
+    @Override
+    public void deletePackaging(Long id) {
+        if (!packagingInfoRepository.existsById(id)) {
+            throw new EntityNotFoundException("包装信息不存在");
+        }
+        packagingInfoRepository.deleteById(id);
+    }
+
+    // ==================== 库区管理 ====================
+
+    @Override
     public List<WarehouseAreaDTO> listWarehouseAreas() {
         return warehouseAreaRepository.findAllByOrderBySortOrderAsc().stream()
-                .map(item -> new WarehouseAreaDTO(
-                        item.getId(),
-                        item.getAreaCode(),
-                        item.getAreaName(),
-                        item.getSortOrder(),
-                        item.getDescription()
-                ))
+                .map(this::toWarehouseAreaDTO)
                 .collect(Collectors.toList());
     }
 
@@ -117,8 +211,7 @@ public class BasicDataServiceImpl implements BasicDataService {
         entity.setUpdatedBy("system");
         entity.setCreatedAt(now);
         entity.setUpdatedAt(now);
-        WarehouseArea saved = warehouseAreaRepository.save(entity);
-        return toDTO(saved);
+        return toWarehouseAreaDTO(warehouseAreaRepository.save(entity));
     }
 
     @Override
@@ -128,8 +221,7 @@ public class BasicDataServiceImpl implements BasicDataService {
         entity.setAreaName(dto.getAreaName());
         entity.setSortOrder(dto.getSortOrder() != null ? dto.getSortOrder() : 0);
         entity.setDescription(dto.getDescription());
-        WarehouseArea saved = warehouseAreaRepository.save(entity);
-        return toDTO(saved);
+        return toWarehouseAreaDTO(warehouseAreaRepository.save(entity));
     }
 
     @Override
@@ -140,7 +232,43 @@ public class BasicDataServiceImpl implements BasicDataService {
         warehouseAreaRepository.deleteById(id);
     }
 
-    private WarehouseAreaDTO toDTO(WarehouseArea entity) {
+    // ==================== DTO 转换 ====================
+
+    private SupplierOptionDTO toSupplierDTO(SupplierInfo entity) {
+        return new SupplierOptionDTO(
+                entity.getId(),
+                entity.getSupplierCode(),
+                entity.getSupplierName(),
+                entity.getContact(),
+                entity.getPhone()
+        );
+    }
+
+    private MaterialOptionDTO toMaterialDTO(MaterialInfo entity) {
+        return new MaterialOptionDTO(
+                entity.getId(),
+                entity.getMaterialNo(),
+                entity.getMaterialName(),
+                entity.getMaterialType(),
+                entity.getUnit(),
+                entity.getSupplierCode(),
+                entity.getSupplierName(),
+                null,
+                null
+        );
+    }
+
+    private PackagingInfoDTO toPackagingDTO(PackagingInfo entity) {
+        return new PackagingInfoDTO(
+                entity.getId(),
+                entity.getMaterialNo(),
+                entity.getSupplierCode(),
+                entity.getPackageModel(),
+                entity.getPackageCapacity()
+        );
+    }
+
+    private WarehouseAreaDTO toWarehouseAreaDTO(WarehouseArea entity) {
         return new WarehouseAreaDTO(
                 entity.getId(),
                 entity.getAreaCode(),

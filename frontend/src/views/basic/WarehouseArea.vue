@@ -1,7 +1,7 @@
 <template>
   <PageContainer title="库区管理">
     <template #actions>
-      <el-button type="primary" @click="handleAdd">
+      <el-button v-if="canEdit" type="primary" @click="handleAdd">
         <el-icon><Plus /></el-icon>新增库区
       </el-button>
     </template>
@@ -12,7 +12,7 @@
       <el-table-column prop="areaName" label="库区名称" min-width="160" />
       <el-table-column prop="sortOrder" label="排序号" width="80" />
       <el-table-column prop="description" label="描述说明" min-width="200" />
-      <el-table-column label="操作" width="160" fixed="right">
+      <el-table-column v-if="canEdit" label="操作" width="160" fixed="right">
         <template #default="{ row }">
           <el-button type="primary" link size="small" @click="handleEdit(row)">
             <el-icon><Edit /></el-icon>编辑
@@ -54,10 +54,14 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, reactive, ref } from 'vue'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
 import { getWarehouseAreasApi, createWarehouseAreaApi, updateWarehouseAreaApi, deleteWarehouseAreaApi } from '@/api/basic'
+import { useUserStore } from '@/store/user'
+
+const userStore = useUserStore()
+const canEdit = computed(() => ['admin', 'manager'].includes(userStore.role))
 
 const loading = ref(false)
 const saving = ref(false)

@@ -1,5 +1,5 @@
 import { createRouter, createWebHistory } from 'vue-router'
-import { getToken } from '@/utils/auth'
+import { getToken, getUser } from '@/utils/auth'
 
 const routes = [
   {
@@ -28,7 +28,7 @@ const routes = [
       },
       {
         path: 'basic',
-        meta: { title: '基础信息', roles: ['admin', 'manager'] },
+        meta: { title: '基础信息' },
         children: [
           {
             path: 'material',
@@ -189,6 +189,16 @@ router.beforeEach((to, from, next) => {
     if (to.path === '/login') {
       next('/dashboard')
     } else {
+      // 检查角色权限
+      const roles = to.meta.roles
+      if (roles && roles.length > 0) {
+        const userInfo = getUser()
+        const userRole = userInfo?.role
+        if (!roles.includes(userRole)) {
+          next('/dashboard')
+          return
+        }
+      }
       next()
     }
   } else {
