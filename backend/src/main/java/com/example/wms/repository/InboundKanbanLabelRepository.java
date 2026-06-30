@@ -58,8 +58,14 @@ public interface InboundKanbanLabelRepository extends JpaRepository<InboundKanba
 
     List<InboundKanbanLabel> findByMaterialCodeAndSupplierNameOrderByCreatedAtAsc(String materialCode, String supplierName);
 
+    List<InboundKanbanLabel> findByMaterialCodeAndSupplierNameAndWarehouseAreaOrderByCreatedAtAsc(
+            String materialCode, String supplierName, String warehouseArea);
+
     /** 查询指定物料+供应商下所有已封存的看板标签 */
     List<InboundKanbanLabel> findByMaterialCodeAndSupplierNameAndSealedTrue(String materialCode, String supplierName);
+
+    List<InboundKanbanLabel> findByMaterialCodeAndSupplierNameAndWarehouseAreaAndSealedTrue(
+            String materialCode, String supplierName, String warehouseArea);
 
     /** 查询所有已封存的看板标签 */
     List<InboundKanbanLabel> findBySealedTrue();

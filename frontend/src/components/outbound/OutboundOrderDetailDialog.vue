@@ -58,6 +58,9 @@
             <el-table-column prop="materialName" label="物料名称" min-width="120" />
             <el-table-column prop="supplier" label="供应商" min-width="120" />
             <el-table-column prop="onHandQty" label="库存数量" width="100" />
+            <el-table-column prop="availableQty" label="可用库存" width="100">
+              <template #default="{ row }">{{ row.availableQty ?? row.onHandQty }}</template>
+            </el-table-column>
             <el-table-column prop="lastInboundDocNo" label="最近入库单号" min-width="140" />
             <el-table-column prop="lastInboundAt" label="最近入库时间" width="180">
               <template #default="{ row }">{{ formatDate(row.lastInboundAt) }}</template>

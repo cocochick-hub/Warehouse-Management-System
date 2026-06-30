@@ -776,17 +776,20 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
         return stocks.stream()
                 .map(stock -> {
-                    int sealedQty = calculateSealedQtyByMaterial(stock.getMaterialCode(), stock.getSupplier());
-                    int availableQty = Math.max(safeInt(stock.getOnHandQty()) - sealedQty, 0);
+                    int onHandQty = safeInt(stock.getOnHandQty());
+                    int sealedQty = calculateSealedQtyByMaterial(
+                            stock.getMaterialCode(), stock.getSupplier(), stock.getWarehouseArea());
+                    int availableQty = Math.max(onHandQty - sealedQty, 0);
                     return new InventoryStockDTO(
                             stock.getMaterialCode(),
                             stock.getMaterialName(),
                             stock.getSupplier(),
-                            availableQty,
+                            onHandQty,
                             stock.getLastInboundDocNo(),
                             stock.getLastInboundAt(),
                             stock.getTransferStatus(),
-                            stock.getWarehouseArea()
+                            stock.getWarehouseArea(),
+                            availableQty
                     );
                 })
                 .collect(Collectors.toList());
@@ -818,17 +821,26 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 .findByInboundOrderDetailIdIn(java.util.Collections.singleton(inboundDetailId));
         return labels.stream()
                 .filter(label -> Boolean.TRUE.equals(label.getSealed()))
-                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .mapToInt(this::sealedQtyOf)
                 .sum();
     }
 
     /** 计算指定物料+供应商已封存的看板总数 */
-    private int calculateSealedQtyByMaterial(String materialCode, String supplierName) {
-        return inboundKanbanLabelRepository
-                .findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+    private int calculateSealedQtyByMaterial(String materialCode, String supplierName, String warehouseArea) {
+        String area = trimToNull(warehouseArea);
+        List<InboundKanbanLabel> labels = area == null
+                ? inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+                : inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndWarehouseAreaAndSealedTrue(
+                        materialCode, supplierName, area);
+        return labels
                 .stream()
-                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .mapToInt(this::sealedQtyOf)
                 .sum();
+    }
+
+    private int sealedQtyOf(InboundKanbanLabel label) {
+        int frozenQty = safeInt(label.getFrozenQty());
+        return frozenQty > 0 ? frozenQty : safeInt(label.getLabelQty());
     }
 
     private String trimToNull(String value) {
