@@ -79,6 +79,28 @@ public class UserServiceImpl implements UserService {
     }
 
     @Override
+    public LoginResponse refreshToken(String authHeader) {
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            throw new BadCredentialsException("无效的认证头");
+        }
+        String oldToken = authHeader.substring(7).trim();
+        // 从过期 token 中提取用户名（过期 7 天内可刷新）
+        String username = jwtUtil.getUsernameFromExpiredToken(oldToken);
+        // 查找用户确保仍有效
+        SysUser user = userRepository.findByUsername(username)
+                .orElseThrow(() -> new UsernameNotFoundException("用户不存在"));
+        if (user.getStatus() == null || user.getStatus() != 1) {
+            throw new BadCredentialsException("该账号已被禁用");
+        }
+        // 签发新 token
+        String newToken = jwtUtil.generateToken(user.getUsername(), user.getRole());
+        UserInfoDTO userInfo = new UserInfoDTO(
+                user.getId(), user.getUsername(), user.getRealName(),
+                user.getRole(), user.getAvatar(), user.getPhone());
+        return new LoginResponse(newToken, "Bearer", userInfo);
+    }
+
+    @Override
     public UserInfoDTO getUserInfo(String username) {
         SysUser user = userRepository.findByUsername(username)
                 .orElseThrow(() -> new UsernameNotFoundException("用户不存在"));

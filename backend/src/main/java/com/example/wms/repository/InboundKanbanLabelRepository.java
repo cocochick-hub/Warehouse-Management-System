@@ -41,7 +41,7 @@ public interface InboundKanbanLabelRepository extends JpaRepository<InboundKanba
      */
     @Modifying
     @Transactional
-    @Query("UPDATE InboundKanbanLabel k SET k.labelQty = k.labelQty - :qty, k.transferStatus = CASE WHEN k.labelQty - :qty = 0 THEN '已转包' ELSE '转包' END " +
+    @Query("UPDATE InboundKanbanLabel k SET k.labelQty = k.labelQty - :qty " +
            "WHERE k.kanbanNo = :kanbanNo AND k.labelQty >= :qty")
     int decreaseLabelQty(@Param("kanbanNo") String kanbanNo, @Param("qty") int qty);
 
@@ -70,22 +70,22 @@ public interface InboundKanbanLabelRepository extends JpaRepository<InboundKanba
     /** 查询所有已封存的看板标签 */
     List<InboundKanbanLabel> findBySealedTrue();
 
-    /** 分页查询已入库且未封存的看板（可按物料编码和供应商名称筛选） */
-    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL)")
+    /** 分页查询已入库、未封存、未出库的看板（可按物料编码和供应商名称筛选） */
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND (k.transferStatus IS NULL OR k.transferStatus != '已出库')")
     Page<InboundKanbanLabel> findByLabelStatusAndSealedFalse(@Param("labelStatus") String labelStatus, Pageable pageable);
 
-    /** 分页查询已入库且未封存的看板（按物料编码筛选） */
-    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND k.materialCode LIKE CONCAT('%', :materialCode, '%')")
+    /** 分页查询已入库、未封存、未出库的看板（按物料编码筛选） */
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND (k.transferStatus IS NULL OR k.transferStatus != '已出库') AND k.materialCode LIKE CONCAT('%', :materialCode, '%')")
     Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndMaterialCodeContaining(
             @Param("labelStatus") String labelStatus, @Param("materialCode") String materialCode, Pageable pageable);
 
-    /** 分页查询已入库且未封存的看板（按供应商名称筛选） */
-    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND k.supplierName LIKE CONCAT('%', :supplierName, '%')")
+    /** 分页查询已入库、未封存、未出库的看板（按供应商名称筛选） */
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND (k.transferStatus IS NULL OR k.transferStatus != '已出库') AND k.supplierName LIKE CONCAT('%', :supplierName, '%')")
     Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndSupplierNameContaining(
             @Param("labelStatus") String labelStatus, @Param("supplierName") String supplierName, Pageable pageable);
 
-    /** 分页查询已入库且未封存的看板（按物料编码和供应商名称筛选） */
-    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND k.materialCode LIKE CONCAT('%', :materialCode, '%') AND k.supplierName LIKE CONCAT('%', :supplierName, '%')")
+    /** 分页查询已入库、未封存、未出库的看板（按物料编码和供应商名称筛选） */
+    @Query("SELECT k FROM InboundKanbanLabel k WHERE k.labelStatus = :labelStatus AND (k.sealed = false OR k.sealed IS NULL) AND (k.transferStatus IS NULL OR k.transferStatus != '已出库') AND k.materialCode LIKE CONCAT('%', :materialCode, '%') AND k.supplierName LIKE CONCAT('%', :supplierName, '%')")
     Page<InboundKanbanLabel> findByLabelStatusAndSealedFalseAndMaterialCodeContainingAndSupplierNameContaining(
             @Param("labelStatus") String labelStatus,
             @Param("materialCode") String materialCode,

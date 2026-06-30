@@ -46,6 +46,7 @@ public class TransferServiceImpl implements TransferService {
     private final OutboundOrderDetailRepository outboundOrderDetailRepository;
     private final InboundOrderRepository inboundOrderRepository;
     private final InboundOrderDetailRepository inboundOrderDetailRepository;
+    private final OutboundHistoryRepository outboundHistoryRepository;
 
     public TransferServiceImpl(InboundKanbanLabelRepository kanbanLabelRepository,
                                PackageTransferRepository transferRepository,
@@ -53,7 +54,8 @@ public class TransferServiceImpl implements TransferService {
                                OutboundOrderRepository outboundOrderRepository,
                                OutboundOrderDetailRepository outboundOrderDetailRepository,
                                InboundOrderRepository inboundOrderRepository,
-                               InboundOrderDetailRepository inboundOrderDetailRepository) {
+                               InboundOrderDetailRepository inboundOrderDetailRepository,
+                               OutboundHistoryRepository outboundHistoryRepository) {
         this.kanbanLabelRepository = kanbanLabelRepository;
         this.transferRepository = transferRepository;
         this.inventoryStockRepository = inventoryStockRepository;
@@ -61,6 +63,7 @@ public class TransferServiceImpl implements TransferService {
         this.outboundOrderDetailRepository = outboundOrderDetailRepository;
         this.inboundOrderRepository = inboundOrderRepository;
         this.inboundOrderDetailRepository = inboundOrderDetailRepository;
+        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     @Override
@@ -82,6 +85,9 @@ public class TransferServiceImpl implements TransferService {
         }
         if ("已转包".equals(source.getTransferStatus())) {
             throw new IllegalStateException("该看板已全部转包，不能继续操作");
+        }
+        if ("已出库".equals(source.getTransferStatus())) {
+            throw new IllegalStateException("该看板已出库，不能进行转包");
         }
 
         int transferQty = request.getTransferQty();
@@ -130,6 +136,15 @@ public class TransferServiceImpl implements TransferService {
         // 确保后续findByKanbanNo能读到最新数据
         entityManager.flush();
         entityManager.clear();
+
+        // 扣减后在Java代码中精确设置转包状态
+        InboundKanbanLabel freshSource = kanbanLabelRepository.findByKanbanNo(source.getKanbanNo()).orElse(source);
+        if (freshSource.getLabelQty() != null && freshSource.getLabelQty() <= 0) {
+            freshSource.setTransferStatus("已转包");
+        } else {
+            freshSource.setTransferStatus("部分转包");
+        }
+        kanbanLabelRepository.save(freshSource);
 
         // ==================== 6. 创建出库单 ====================
         String outboundDocNo = generateOutboundDocNo();
@@ -180,11 +195,9 @@ public class TransferServiceImpl implements TransferService {
                     source.getSupplierName(), stockArea, transferQty, currentOperator, now);
         }
 
-        // ==================== 9. 查询源看板最新状态 ====================
-        InboundKanbanLabel freshSource = kanbanLabelRepository.findByKanbanNo(source.getKanbanNo()).orElse(source);
-        int sourceQtyAfter = freshSource.getLabelQty();
+        // ==================== 9. 记录转包历史（freshSource 已在步骤5中获取并更新） ====================
+        int sourceQtyAfter = freshSource.getLabelQty() != null ? freshSource.getLabelQty() : 0;
 
-        // ==================== 10. 记录转包历史 ====================
         PackageTransfer record = createTransferRecord(
                 source, targetKanbanNo, transferQty, source.getLabelQty(), sourceQtyAfter,
                 isMergeMode ? "合包" : "拆包",
@@ -543,7 +556,12 @@ public class TransferServiceImpl implements TransferService {
     private int calculateAvailableQty(InboundKanbanLabel label) {
         int labelQty = label.getLabelQty() == null ? 0 : label.getLabelQty();
         int frozenQty = label.getFrozenQty() == null ? 0 : label.getFrozenQty();
-        return Math.max(0, labelQty - frozenQty);
+        int consumedQty = outboundHistoryRepository.findByKanbanLabelId(label.getId())
+                .stream()
+                .filter(h -> !"已退库".equals(h.getStatus()))
+                .mapToInt(h -> h.getIssueQty() == null ? 0 : h.getIssueQty())
+                .sum();
+        return Math.max(0, labelQty - consumedQty - frozenQty);
     }
 
     @Override

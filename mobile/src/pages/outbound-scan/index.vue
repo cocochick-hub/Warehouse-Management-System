@@ -21,11 +21,15 @@
         :extra-rows="outboundExtras"
       />
 
+      <view v-if="label && label.sealed" class="tips">
+        <van-tag type="danger" size="large">{{ label.sealedMessage || '该看板已封存，无法出库' }}</van-tag>
+      </view>
+
       <view v-if="label && label.labelStatus === '已出库'" class="tips">
         <van-tag type="warning" size="large">该看板已出库</van-tag>
       </view>
 
-      <view v-if="label && label.labelStatus !== '已出库'" class="actions">
+      <view v-if="label && !label.sealed && label.labelStatus !== '已出库'" class="actions">
         <van-button type="danger" block round :loading="confirming" @click="onTryConfirm">
           确认出库
         </van-button>
@@ -76,12 +80,19 @@ async function onScan(kanbanNo) {
   try {
     const res = await getOutboundScanLabel(kanbanNo)
     label.value = res.data
+    if (res.data?.sealed) {
+      uni.showToast({ title: res.data.sealedMessage || '该看板已封存，无法出库', icon: 'none', duration: 3000 })
+    }
   } catch {
     label.value = null
   }
 }
 
 function onTryConfirm() {
+  if (label.value?.sealed) {
+    uni.showToast({ title: '该看板已封存，无法出库', icon: 'none' })
+    return
+  }
   if (label.value?.fifoWarning) {
     showFifo.value = true
   } else {

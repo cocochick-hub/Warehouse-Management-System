@@ -503,7 +503,7 @@ function statusType(status) {
 
 function transferStatusType(status) {
   if (status === '已转包') return 'danger'
-  if (status === '转包') return 'warning'
+  if (status === '转包' || status === '部分转包') return 'warning'
   if (status === '转入') return 'success'
   return 'info'
 }

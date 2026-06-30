@@ -29,6 +29,13 @@
       </section>
 
       <section v-if="currentLabel" class="result-panel">
+        <el-alert
+          v-if="currentLabel.sealed"
+          :title="currentLabel.sealedMessage || '该看板已封存，无法出库'"
+          type="error"
+          :closable="false"
+          show-icon
+        />
         <el-descriptions :column="2" border>
           <el-descriptions-item label="看板号">{{ currentLabel.kanbanNo }}</el-descriptions-item>
           <el-descriptions-item label="状态">
@@ -43,38 +50,40 @@
           <el-descriptions-item label="库区">{{ currentLabel.warehouseArea || '-' }}</el-descriptions-item>
         </el-descriptions>
 
-        <el-form label-width="90px" class="issue-form">
-          <el-form-item label="出库单号">
-            <el-select v-model="issueForm.docNo" filterable clearable placeholder="请选择出库单" style="width: 100%">
-              <el-option
-                v-for="order in pendingOrders"
-                :key="order.id"
-                :label="`${order.docNo} - ${order.supplier}`"
-                :value="order.docNo"
+        <template v-if="!currentLabel.sealed">
+          <el-form label-width="90px" class="issue-form">
+            <el-form-item label="出库单号">
+              <el-select v-model="issueForm.docNo" filterable clearable placeholder="请选择出库单" style="width: 100%">
+                <el-option
+                  v-for="order in pendingOrders"
+                  :key="order.id"
+                  :label="`${order.docNo} - ${order.supplier}`"
+                  :value="order.docNo"
+                />
+              </el-select>
+            </el-form-item>
+            <el-form-item label="出库数量">
+              <el-input-number
+                v-model="issueForm.issueQty"
+                :min="1"
+                :max="Math.max(1, currentLabel.availableQty || 0)"
+                controls-position="right"
               />
-            </el-select>
-          </el-form-item>
-          <el-form-item label="出库数量">
-            <el-input-number
-              v-model="issueForm.issueQty"
-              :min="1"
-              :max="currentLabel.availableQty"
-              controls-position="right"
-            />
-          </el-form-item>
-        </el-form>
+            </el-form-item>
+          </el-form>
 
-        <div class="confirm-row">
-          <el-button
-            type="success"
-            size="large"
-            :disabled="!canIssue"
-            :loading="submitting"
-            @click="handleIssue"
-          >
-            确认出库
-          </el-button>
-        </div>
+          <div class="confirm-row">
+            <el-button
+              type="success"
+              size="large"
+              :disabled="!canIssue"
+              :loading="submitting"
+              @click="handleIssue"
+            >
+              确认出库
+            </el-button>
+          </div>
+        </template>
       </section>
     </div>
 
@@ -124,6 +133,8 @@ const labelStatusType = computed(() => {
 const canIssue = computed(() => {
   return (
     currentLabel.value?.labelStatus === '已入库' &&
+    !currentLabel.value?.sealed &&
+    currentLabel.value?.availableQty > 0 &&
     issueForm.docNo &&
     issueForm.issueQty > 0
   )
@@ -148,9 +159,11 @@ async function handleQuery() {
     const { data } = await getOutboundScanLabel(queryValue)
     currentLabel.value = data
     issueForm.docNo = ''
-    issueForm.issueQty = data.labelQty || 1
+    issueForm.issueQty = data.availableQty ?? (data.labelQty || 1)
 
-    if (data.fifoWarning) {
+    if (data.sealed) {
+      ElMessage.error(data.sealedMessage || '该看板已封存，无法出库')
+    } else if (data.fifoWarning) {
       fifoVisible.value = true
     }
   } finally {

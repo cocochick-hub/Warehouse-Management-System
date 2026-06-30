@@ -230,46 +230,58 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         InboundOrder inboundOrder = inboundOrderRepository.findById(label.getInboundOrderId())
                 .orElseThrow(() -> new EntityNotFoundException("入库单不存在"));
 
-        List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(label.getInboundOrderDetailId());
-        int consumedQty = consumed.stream()
+        // 计算该看板的可用数量：看板数量 - 本看板已出库(未退) - 封存量
+        List<OutboundHistory> kanbanHistories = outboundHistoryRepository.findByKanbanLabelId(label.getId());
+        int kanbanConsumedQty = kanbanHistories.stream()
                 .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
                 .mapToInt(h -> safeInt(h.getIssueQty())).sum();
-        int availableQty = Math.max(safeInt(detail.getActualQty()) - consumedQty, 0);
+        int frozenQty = safeInt(label.getFrozenQty());
+        int availableQty = Math.max(safeInt(label.getLabelQty()) - kanbanConsumedQty - frozenQty, 0);
+
+        boolean sealed = Boolean.TRUE.equals(label.getSealed());
+        String sealedMessage = sealed ? "该看板已封存，无法出库" : null;
+
+        // 已封存看板直接返回，跳过 FIFO 检查
+        if (sealed) {
+            return new OutboundScanLabelResponse(
+                    label.getId(),
+                    label.getKanbanNo(),
+                    label.getDocNo(),
+                    label.getMaterialCode(),
+                    label.getMaterialName(),
+                    label.getSupplierCode(),
+                    label.getSupplierName(),
+                    label.getLabelQty(),
+                    label.getWarehouseArea(),
+                    label.getLabelStatus(),
+                    label.getInboundOrderId(),
+                    label.getInboundOrderDetailId(),
+                    false,
+                    null,
+                    null,
+                    availableQty,
+                    sealed,
+                    sealedMessage
+            );
+        }
 
         boolean fifoWarning = false;
         String fifoMessage = null;
         String earliestDocNo = null;
 
-        List<InboundOrderDetail> allDetailsForMaterial = inboundOrderDetailRepository
-                .findByMaterialCodeAndSupplierName(detail.getMaterialCode(), detail.getSupplierName());
-
-        LocalDateTime earliestCreatedAt = null;
-
-        for (InboundOrderDetail otherDetail : allDetailsForMaterial) {
-            InboundOrder otherOrder = inboundOrderRepository.findByDocNo(otherDetail.getDocNo()).orElse(null);
-            if (otherOrder == null) {
-                continue;
-            }
-            if (!STATUS_COMPLETED.equals(otherOrder.getStatus())
-                    && !STATUS_PARTIAL.equals(otherOrder.getStatus())) {
-                continue;
-            }
-
-            LocalDateTime orderCreatedAt = otherOrder.getCreatedAt();
-            if (orderCreatedAt != null
-                    && (earliestCreatedAt == null || orderCreatedAt.isBefore(earliestCreatedAt))) {
-                earliestCreatedAt = orderCreatedAt;
-                earliestDocNo = otherOrder.getDocNo();
+        if (!sealed) {
+            // 用 JOIN 一次查询最早入库单号，避免 N+1 查询卡死
+            List<String> earliestDocs = inboundOrderDetailRepository
+                    .findEarliestCompletedDocNo(detail.getMaterialCode(), detail.getSupplierName(),
+                            org.springframework.data.domain.PageRequest.of(0, 1));
+            if (!earliestDocs.isEmpty()) {
+                earliestDocNo = earliestDocs.get(0);
+                if (!earliestDocNo.equals(inboundOrder.getDocNo())) {
+                    fifoWarning = true;
+                    fifoMessage = "当前出库的库存并非最早入库，是否要继续出库？";
+                }
             }
         }
-
-        if (earliestDocNo != null && !earliestDocNo.equals(inboundOrder.getDocNo())) {
-            fifoWarning = true;
-            fifoMessage = "当前出库的库存并非最早入库，是否要继续出库？";
-        }
-
-        boolean sealed = Boolean.TRUE.equals(label.getSealed());
-        String sealedMessage = sealed ? "该看板已封存，无法出库" : null;
 
         return new OutboundScanLabelResponse(
                 label.getId(),
@@ -310,7 +322,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         if ("已转包".equals(label.getTransferStatus())) {
             throw new IllegalStateException("该看板已全量转包，无法出库");
         }
-        if ("转包".equals(label.getTransferStatus())) {
+        if ("转包".equals(label.getTransferStatus()) || "部分转包".equals(label.getTransferStatus())) {
             throw new IllegalStateException("该看板已被部分转包，不允许直接出库");
         }
 
@@ -331,11 +343,13 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 .findById(label.getInboundOrderDetailId())
                 .orElseThrow(() -> new EntityNotFoundException("入库明细不存在"));
 
-        List<OutboundHistory> consumed = outboundHistoryRepository.findBySourceDetailId(inboundDetail.getId());
+        // 计算该看板的可用数量：看板数量 - 本看板已出库(未退) - 封存量
+        List<OutboundHistory> consumed = outboundHistoryRepository.findByKanbanLabelId(label.getId());
         int consumedQty = consumed.stream()
                 .filter(h -> !STATUS_RETURNED.equals(h.getStatus()))
                 .mapToInt(h -> safeInt(h.getIssueQty())).sum();
-        int availableQty = Math.max(safeInt(inboundDetail.getActualQty()) - consumedQty, 0);
+        int frozenQty = safeInt(label.getFrozenQty());
+        int availableQty = Math.max(safeInt(label.getLabelQty()) - consumedQty - frozenQty, 0);
 
         int issueQty = safeInt(request.getIssueQty());
         if (issueQty <= 0) {
@@ -648,6 +662,12 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             history.setWarehouseArea(defaultIfBlank(detail.getWarehouseArea(), "默认库区"));
             history.setStatus("已出库");
             history.setIssuedBy(operator);
+            // 关联看板标签，确保退库时能通过看板号精确追踪
+            List<InboundKanbanLabel> labels = inboundKanbanLabelRepository
+                    .findByInboundOrderDetailIdIn(java.util.Collections.singleton(id.getId()));
+            if (!labels.isEmpty()) {
+                history.setKanbanLabelId(labels.get(0).getId());
+            }
             history.setCreatedAt(now);
             records.add(history);
 
@@ -1069,7 +1089,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                 }
                 if (TRANSFER_STATUS_ISSUED.equals(label.getTransferStatus())
                         || "已转包".equals(label.getTransferStatus())
-                        || "转包".equals(label.getTransferStatus())) {
+                        || "转包".equals(label.getTransferStatus())
+                        || "部分转包".equals(label.getTransferStatus())) {
                     continue;
                 }
                 // 去重（同一看板可能被多条明细匹配到，取第一条）
@@ -1166,7 +1187,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             if ("已转包".equals(label.getTransferStatus())) {
                 throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已全量转包，无法出库");
             }
-            if ("转包".equals(label.getTransferStatus())) {
+            if ("转包".equals(label.getTransferStatus()) || "部分转包".equals(label.getTransferStatus())) {
                 throw new IllegalStateException("看板 " + label.getKanbanNo() + " 已被部分转包，不允许直接出库");
             }
         }

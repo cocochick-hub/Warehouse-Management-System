@@ -41,8 +41,12 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
+import { clearAuth } from '@/utils/auth'
 import { useUserStore } from '@/store/user'
 import { updateBaseUrl, getCurrentBaseUrl } from '@/api/request'
+
+// 登录页加载时清除旧 token，避免过期 token 干扰登录请求
+clearAuth()
 
 const userStore = useUserStore()
 const loading = ref(false)

@@ -106,7 +106,7 @@ public class TransferServiceImplTest {
         // DB验证：源看板
         InboundKanbanLabel updatedSource = kanbanLabelRepository.findByKanbanNo(dynamicKanbanNo).orElseThrow();
         assertEquals(70, updatedSource.getLabelQty());
-        assertEquals("转包", updatedSource.getTransferStatus());
+        assertEquals("部分转包", updatedSource.getTransferStatus());
 
         // DB验证：目标看板
         InboundKanbanLabel target = kanbanLabelRepository.findByKanbanNo(result.getTargetKanbanNo()).orElseThrow();
@@ -182,7 +182,7 @@ public class TransferServiceImplTest {
         // 第二次：需要重置源看板状态才能再次转包
         InboundKanbanLabel src = kanbanLabelRepository.findByKanbanNo(dynamicKanbanNo).orElseThrow();
         src.setLabelQty(70);
-        src.setTransferStatus("转包");
+        src.setTransferStatus("部分转包");
         kanbanLabelRepository.save(src);
 
         TransferRequest req2 = new TransferRequest();
@@ -194,7 +194,7 @@ public class TransferServiceImplTest {
 
         InboundKanbanLabel finalSrc = kanbanLabelRepository.findByKanbanNo(dynamicKanbanNo).orElseThrow();
         assertEquals(20, finalSrc.getLabelQty());
-        assertEquals("转包", finalSrc.getTransferStatus());
+        assertEquals("部分转包", finalSrc.getTransferStatus());
     }
 
     // ==================== ⑤ 合包-基本操作 ====================

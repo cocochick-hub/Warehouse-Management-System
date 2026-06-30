@@ -1,7 +1,33 @@
 -- ============================================================================
 -- WMS 仓库管理系统 - MySQL 数据库 Schema
--- 说明：应用启动时自动执行，使用 CREATE TABLE IF NOT EXISTS 确保幂等
+-- 说明：应用启动时自动执行，每次重启清空全部数据并重建
 -- ============================================================================
+
+-- 关闭外键检查，按任意顺序删除所有表
+SET FOREIGN_KEY_CHECKS = 0;
+
+DROP TABLE IF EXISTS outbound_history;
+DROP TABLE IF EXISTS inbound_kanban_label;
+DROP TABLE IF EXISTS outbound_order_detail;
+DROP TABLE IF EXISTS inbound_order_detail;
+DROP TABLE IF EXISTS outbound_order;
+DROP TABLE IF EXISTS inbound_order;
+DROP TABLE IF EXISTS demand_detail;
+DROP TABLE IF EXISTS demand_batch;
+DROP TABLE IF EXISTS packaging_info;
+DROP TABLE IF EXISTS material_info;
+DROP TABLE IF EXISTS supplier_info;
+DROP TABLE IF EXISTS inventory_check_detail;
+DROP TABLE IF EXISTS inventory_check_task;
+DROP TABLE IF EXISTS package_transfer;
+DROP TABLE IF EXISTS inventory_stock;
+DROP TABLE IF EXISTS warehouse_area;
+DROP TABLE IF EXISTS ai_alert;
+DROP TABLE IF EXISTS alert_threshold;
+DROP TABLE IF EXISTS audit_log;
+DROP TABLE IF EXISTS sys_user;
+
+SET FOREIGN_KEY_CHECKS = 1;
 
 -- ============================================================================
 -- 1. 系统用户表

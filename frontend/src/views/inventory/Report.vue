@@ -109,9 +109,14 @@
           <template #default="{ row }">{{ row.packageSeq }}/{{ row.packageTotal }}</template>
         </el-table-column>
         <el-table-column prop="warehouseArea" label="库区" width="100" />
-        <el-table-column prop="labelStatus" label="入库状态" width="100">
+        <el-table-column prop="labelStatus" label="看板状态" width="100">
           <template #default="{ row }">
-            <el-tag :type="row.labelStatus === '已入库' ? 'success' : 'info'" size="small">{{ row.labelStatus }}</el-tag>
+            <template v-if="row.transferStatus === '已出库'">
+              <el-tag type="danger" size="small">已出库</el-tag>
+            </template>
+            <template v-else>
+              <el-tag :type="row.labelStatus === '已入库' ? 'success' : 'info'" size="small">{{ row.labelStatus }}</el-tag>
+            </template>
           </template>
         </el-table-column>
         <el-table-column prop="sealed" label="封存状态" width="100">

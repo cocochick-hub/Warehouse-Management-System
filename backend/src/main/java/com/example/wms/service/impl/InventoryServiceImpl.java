@@ -7,6 +7,7 @@ import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.entity.InventoryStock;
 import com.example.wms.repository.InboundKanbanLabelRepository;
 import com.example.wms.repository.InventoryStockRepository;
+import com.example.wms.repository.OutboundHistoryRepository;
 import com.example.wms.service.InventoryService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -25,11 +26,14 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryStockRepository inventoryStockRepository;
     private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
+    private final OutboundHistoryRepository outboundHistoryRepository;
 
     public InventoryServiceImpl(InventoryStockRepository inventoryStockRepository,
-                                InboundKanbanLabelRepository inboundKanbanLabelRepository) {
+                                InboundKanbanLabelRepository inboundKanbanLabelRepository,
+                                OutboundHistoryRepository outboundHistoryRepository) {
         this.inventoryStockRepository = inventoryStockRepository;
         this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
+        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     @Override
@@ -101,6 +105,8 @@ public class InventoryServiceImpl implements InventoryService {
                 : inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndWarehouseAreaOrderByCreatedAtAsc(
                         materialCode.trim(), supplier.trim(), area);
         return labels.stream()
+                .filter(label -> !"已出库".equals(label.getTransferStatus())
+                        && !"已转包".equals(label.getTransferStatus()))
                 .map(this::toKanbanLabelDTO)
                 .collect(Collectors.toList());
     }
@@ -138,7 +144,12 @@ public class InventoryServiceImpl implements InventoryService {
     private int calculateAvailableQty(InboundKanbanLabel label) {
         int labelQty = safeInt(label.getLabelQty());
         int frozenQty = safeInt(label.getFrozenQty());
-        return Math.max(labelQty - frozenQty, 0);
+        int consumedQty = outboundHistoryRepository.findByKanbanLabelId(label.getId())
+                .stream()
+                .filter(h -> !"已退库".equals(h.getStatus()))
+                .mapToInt(h -> safeInt(h.getIssueQty()))
+                .sum();
+        return Math.max(labelQty - consumedQty - frozenQty, 0);
     }
 
     private int calculateSealedQty(String materialCode, String supplierName, String warehouseArea) {

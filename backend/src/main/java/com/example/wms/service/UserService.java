@@ -21,6 +21,13 @@ public interface UserService {
     LoginResponse login(LoginRequest request);
 
     /**
+     * 刷新 Token
+     * @param authHeader Authorization 请求头
+     * @return 新的登录响应（新 Token + 用户信息）
+     */
+    LoginResponse refreshToken(String authHeader);
+
+    /**
      * 根据用户名获取用户信息
      * @param username 用户名
      * @return 用户信息 DTO

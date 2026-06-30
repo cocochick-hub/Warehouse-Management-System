@@ -50,6 +50,17 @@ public class AuthController {
     }
 
     /**
+     * 刷新 Token
+     * 接受已过期的旧 token，验证签名后签发新 token
+     * 过期不超过 7 天的 token 仍可刷新
+     */
+    @PostMapping("/refresh")
+    public ApiResult<LoginResponse> refreshToken(@RequestHeader("Authorization") String authHeader) {
+        LoginResponse response = userService.refreshToken(authHeader);
+        return ApiResult.success("Token 已刷新", response);
+    }
+
+    /**
      * 退出登录
      */
     @PostMapping("/logout")

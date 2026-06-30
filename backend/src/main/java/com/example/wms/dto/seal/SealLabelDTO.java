@@ -18,6 +18,7 @@ public class SealLabelDTO {
     private Integer labelQty;
     private String warehouseArea;
     private String labelStatus;
+    private String transferStatus;
     private Boolean sealed;
     private LocalDateTime sealedAt;
     private String sealedBy;

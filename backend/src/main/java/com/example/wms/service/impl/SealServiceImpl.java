@@ -5,6 +5,7 @@ import com.example.wms.dto.seal.SealLabelDTO;
 import com.example.wms.dto.seal.SealLabelRequest;
 import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.repository.InboundKanbanLabelRepository;
+import com.example.wms.repository.OutboundHistoryRepository;
 import com.example.wms.service.SealService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,9 +22,12 @@ public class SealServiceImpl implements SealService {
     private static final String STATUS_RECEIVED = "已入库";
 
     private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
+    private final OutboundHistoryRepository outboundHistoryRepository;
 
-    public SealServiceImpl(InboundKanbanLabelRepository inboundKanbanLabelRepository) {
+    public SealServiceImpl(InboundKanbanLabelRepository inboundKanbanLabelRepository,
+                           OutboundHistoryRepository outboundHistoryRepository) {
         this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
+        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     @Override
@@ -122,7 +126,12 @@ public class SealServiceImpl implements SealService {
     private int calculateAvailableQty(InboundKanbanLabel label) {
         int labelQty = label.getLabelQty() == null ? 0 : label.getLabelQty();
         int frozenQty = label.getFrozenQty() == null ? 0 : label.getFrozenQty();
-        return Math.max(labelQty - frozenQty, 0);
+        int consumedQty = outboundHistoryRepository.findByKanbanLabelId(label.getId())
+                .stream()
+                .filter(h -> !"已退库".equals(h.getStatus()))
+                .mapToInt(h -> h.getIssueQty() == null ? 0 : h.getIssueQty())
+                .sum();
+        return Math.max(labelQty - consumedQty - frozenQty, 0);
     }
 
     private SealLabelDTO toDTO(InboundKanbanLabel label) {
@@ -136,6 +145,7 @@ public class SealServiceImpl implements SealService {
                 label.getLabelQty(),
                 label.getWarehouseArea(),
                 label.getLabelStatus(),
+                label.getTransferStatus(),
                 label.getSealed(),
                 label.getSealedAt(),
                 label.getSealedBy(),

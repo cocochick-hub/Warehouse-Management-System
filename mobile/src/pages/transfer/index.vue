@@ -43,15 +43,17 @@
             </button>
           </view>
 
-          <van-cell-group inset>
-            <van-field
+          <view class="transfer-qty-input">
+            <text class="input-label">转移数量</text>
+            <input
               v-model="transferQty"
-              label="转移数量"
-              type="digit"
+              class="qty-field"
+              type="number"
               placeholder="请输入转移数量"
+              @input="onQtyInput"
             />
-            <van-cell title="源看板剩余" :value="`${remainingQty} 件`" />
-          </van-cell-group>
+            <text class="qty-remain">源看板剩余 {{ remainingQty }} 件</text>
+          </view>
 
           <view v-if="transferMode !== 'auto'" class="target-box">
             <ScanInput
@@ -205,6 +207,10 @@ async function onScanSource(kanbanNo) {
       sourceError.value = '该看板已封存，无法转包'
       return
     }
+    if (data.transferStatus === '已出库') {
+      sourceError.value = '该看板已出库，无法转包'
+      return
+    }
     if (!Number(data.availableQty || 0)) {
       sourceError.value = '该看板无可转包数量'
       return
@@ -244,6 +250,11 @@ async function onScanTarget(kanbanNo) {
   } catch {
     targetError.value = '目标看板不存在，无法合包'
   }
+}
+
+function onQtyInput(e) {
+  // 确保 v-model 在 App webview 中正常更新（原生 input 兼容性更好）
+  transferQty.value = e.detail?.value ?? e.target?.value ?? ''
 }
 
 function selectMode(mode) {
@@ -360,6 +371,33 @@ function goBack() {
   font-weight: 600;
 }
 .target-box { padding: 0 16px; }
+.transfer-qty-input {
+  margin: 12px 16px;
+  padding: 12px 16px;
+  background: #fff;
+  border-radius: 8px;
+}
+.transfer-qty-input .input-label {
+  font-size: 14px;
+  color: #323233;
+  display: block;
+  margin-bottom: 6px;
+}
+.qty-field {
+  width: 100%;
+  font-size: 18px;
+  font-weight: 600;
+  padding: 8px 0;
+  border: none;
+  border-bottom: 2px solid #1989fa;
+  outline: none;
+}
+.qty-remain {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  color: #969799;
+}
 .error-tip { text-align: center; margin: 10px 16px 0; }
 .action { padding: 16px 16px 0; }
 .result { margin-top: 8px; }

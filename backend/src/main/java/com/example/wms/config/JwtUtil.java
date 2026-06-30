@@ -95,6 +95,25 @@ public class JwtUtil {
     }
 
     /**
+     * 从已过期的 Token 中提取用户名（用于刷新 Token）
+     * 只要签名有效且过期不超过 7 天就允许提取
+     */
+    public String getUsernameFromExpiredToken(String token) {
+        try {
+            return parseClaims(token).getSubject();
+        } catch (ExpiredJwtException e) {
+            // 过期也允许提取，只要在宽限期内
+            long expiredAt = e.getClaims().getExpiration().getTime();
+            long now = System.currentTimeMillis();
+            long sevenDaysMs = 7 * 24 * 60 * 60 * 1000L;
+            if (now - expiredAt > sevenDaysMs) {
+                throw new IllegalArgumentException("Token 过期超过 7 天，请重新登录");
+            }
+            return e.getClaims().getSubject();
+        }
+    }
+
+    /**
      * 解析 JWT Claims（私有方法）
      */
     private Claims parseClaims(String token) {
