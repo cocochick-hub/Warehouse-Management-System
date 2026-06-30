@@ -153,6 +153,8 @@ public class UserServiceImpl implements UserService {
         user.setPhone(trimToNull(request.getPhone()));
         user.setCreatedBy("admin");
         user.setUpdatedBy("admin");
+        user.setCreatedAt(java.time.LocalDateTime.now());
+        user.setUpdatedAt(java.time.LocalDateTime.now());
 
         return toManagedUserDTO(userRepository.save(user));
     }

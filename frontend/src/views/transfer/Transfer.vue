@@ -288,6 +288,12 @@ onMounted(() => {
 // ========== 看板列表操作 ==========
 function openCreateTransfer() {
   activeTab.value = 'create'
+  // 清空已选看板和表单，让用户可以重新扫码选择
+  selectedKanban.value = null
+  transferForm.transferQty = 1
+  transferForm.targetKanbanNo = ''
+  // 如果在历史tab则刷新列表
+  fetchKanbans()
 }
 
 function openInboundCreate() {
