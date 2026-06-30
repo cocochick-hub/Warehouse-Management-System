@@ -4,9 +4,7 @@ import com.example.wms.dto.seal.SealBatchResultDTO;
 import com.example.wms.dto.seal.SealLabelDTO;
 import com.example.wms.dto.seal.SealLabelRequest;
 import com.example.wms.entity.InboundKanbanLabel;
-import com.example.wms.entity.OutboundHistory;
 import com.example.wms.repository.InboundKanbanLabelRepository;
-import com.example.wms.repository.OutboundHistoryRepository;
 import com.example.wms.service.SealService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -23,12 +21,9 @@ public class SealServiceImpl implements SealService {
     private static final String STATUS_RECEIVED = "已入库";
 
     private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
-    private final OutboundHistoryRepository outboundHistoryRepository;
 
-    public SealServiceImpl(InboundKanbanLabelRepository inboundKanbanLabelRepository,
-                           OutboundHistoryRepository outboundHistoryRepository) {
+    public SealServiceImpl(InboundKanbanLabelRepository inboundKanbanLabelRepository) {
         this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
-        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     @Override
@@ -125,17 +120,9 @@ public class SealServiceImpl implements SealService {
     }
 
     private int calculateAvailableQty(InboundKanbanLabel label) {
-        List<OutboundHistory> consumed = outboundHistoryRepository
-                .findBySourceDetailId(label.getInboundOrderDetailId());
-        int consumedQty = consumed.stream()
-                .filter(h -> !"已退库".equals(h.getStatus()))
-                .mapToInt(h -> {
-                    Integer qty = h.getIssueQty();
-                    return qty == null ? 0 : qty;
-                })
-                .sum();
         int labelQty = label.getLabelQty() == null ? 0 : label.getLabelQty();
-        return Math.max(labelQty - consumedQty, 0);
+        int frozenQty = label.getFrozenQty() == null ? 0 : label.getFrozenQty();
+        return Math.max(labelQty - frozenQty, 0);
     }
 
     private SealLabelDTO toDTO(InboundKanbanLabel label) {

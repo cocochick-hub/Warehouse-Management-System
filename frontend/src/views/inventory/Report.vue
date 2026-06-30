@@ -42,6 +42,11 @@
       <el-table-column prop="materialName" label="物料名称" min-width="160" />
       <el-table-column prop="supplier" label="供应商" min-width="170" />
       <el-table-column prop="onHandQty" label="当前库存" width="110" />
+      <el-table-column prop="availableQty" label="可用库存" width="110">
+        <template #default="{ row }">
+          <span :class="row.availableQty <= 0 ? 'no-qty' : ''">{{ row.availableQty ?? row.onHandQty }}</span>
+        </template>
+      </el-table-column>
       <el-table-column prop="transferStatus" label="转包状态" width="100">
         <template #default="{ row }">
           <el-tag :type="row.transferStatus === '转包' ? 'warning' : 'info'" size="small">
@@ -209,7 +214,8 @@ async function handleViewLabels(row) {
   try {
     const { data } = await getInventoryLabelsApi({
       materialCode: row.materialCode,
-      supplier: row.supplier
+      supplier: row.supplier,
+      warehouseArea: row.warehouseArea
     })
     labelData.value = data || []
   } catch {

@@ -55,6 +55,9 @@
           <el-table-column prop="materialName" label="物料名称" min-width="160" />
           <el-table-column prop="supplier" label="供应商" min-width="140" />
           <el-table-column prop="onHandQty" label="当前库存" width="100" />
+          <el-table-column prop="availableQty" label="可用库存" width="100">
+            <template #default="{ row }">{{ row.availableQty ?? row.onHandQty }}</template>
+          </el-table-column>
           <el-table-column prop="transferStatus" label="转包状态" width="100" />
           <el-table-column prop="warehouseArea" label="库区" width="100" />
           <el-table-column prop="lastInboundDocNo" label="最近入库单号" width="190" />

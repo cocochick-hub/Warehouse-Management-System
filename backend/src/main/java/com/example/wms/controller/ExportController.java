@@ -57,7 +57,7 @@ public class ExportController {
         Workbook wb = new XSSFWorkbook();
         Sheet sheet = wb.createSheet("库存报表");
         Row header = sheet.createRow(0);
-        String[] titles = {"物料编码", "物料名称", "供应商", "库区", "库存数量", "入库单号", "入库时间", "封存状态"};
+        String[] titles = {"物料编码", "物料名称", "供应商", "库区", "当前库存", "封存数量", "可用库存", "入库单号", "入库时间", "转包状态"};
         for (int i = 0; i < titles.length; i++) {
             header.createCell(i).setCellValue(titles[i]);
         }
@@ -69,10 +69,14 @@ public class ExportController {
             row.createCell(1).setCellValue(s.getMaterialName());
             row.createCell(2).setCellValue(s.getSupplier());
             row.createCell(3).setCellValue(s.getWarehouseArea());
-            row.createCell(4).setCellValue(s.getOnHandQty() != null ? s.getOnHandQty() : 0);
-            row.createCell(5).setCellValue(s.getLastInboundDocNo() != null ? s.getLastInboundDocNo() : "-");
-            row.createCell(6).setCellValue(s.getLastInboundAt() != null ? s.getLastInboundAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "-");
-            row.createCell(7).setCellValue(s.getTransferStatus() != null ? s.getTransferStatus() : "-");
+            int onHandQty = safeInt(s.getOnHandQty());
+            int sealedQty = calculateSealedQty(s);
+            row.createCell(4).setCellValue(onHandQty);
+            row.createCell(5).setCellValue(sealedQty);
+            row.createCell(6).setCellValue(Math.max(onHandQty - sealedQty, 0));
+            row.createCell(7).setCellValue(s.getLastInboundDocNo() != null ? s.getLastInboundDocNo() : "-");
+            row.createCell(8).setCellValue(s.getLastInboundAt() != null ? s.getLastInboundAt().format(DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")) : "-");
+            row.createCell(9).setCellValue(s.getTransferStatus() != null ? s.getTransferStatus() : "-");
         }
 
         for (int i = 0; i < titles.length; i++) sheet.autoSizeColumn(i);
@@ -182,5 +186,21 @@ public class ExportController {
         response.setHeader("Content-Disposition", "attachment; filename*=UTF-8''" + filename);
         wb.write(response.getOutputStream());
         wb.close();
+    }
+
+    private int calculateSealedQty(InventoryStock stock) {
+        return kanbanLabelRepository
+                .findByMaterialCodeAndSupplierNameAndWarehouseAreaAndSealedTrue(
+                        stock.getMaterialCode(), stock.getSupplier(), stock.getWarehouseArea())
+                .stream()
+                .mapToInt(label -> {
+                    int frozenQty = safeInt(label.getFrozenQty());
+                    return frozenQty > 0 ? frozenQty : safeInt(label.getLabelQty());
+                })
+                .sum();
+    }
+
+    private int safeInt(Integer value) {
+        return value == null ? 0 : value;
     }
 }

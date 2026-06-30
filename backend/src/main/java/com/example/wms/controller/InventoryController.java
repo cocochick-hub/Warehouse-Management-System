@@ -38,7 +38,8 @@ public class InventoryController {
     @GetMapping("/labels")
     public ApiResult<List<InboundKanbanLabelDTO>> listLabels(
             @RequestParam String materialCode,
-            @RequestParam String supplier) {
-        return ApiResult.success(inventoryService.listLabelsByMaterial(materialCode, supplier));
+            @RequestParam String supplier,
+            @RequestParam(required = false) String warehouseArea) {
+        return ApiResult.success(inventoryService.listLabelsByMaterial(materialCode, supplier, warehouseArea));
     }
 }

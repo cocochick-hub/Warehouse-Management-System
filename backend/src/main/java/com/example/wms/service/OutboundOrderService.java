@@ -16,7 +16,9 @@ import com.example.wms.dto.outbound.OutboundIssueByLabelRequest;
 import com.example.wms.dto.outbound.OutboundIssuedLabelDTO;
 
 import org.springframework.data.domain.Page;
+
 import java.util.List;
+import java.util.Map;
 
 public interface OutboundOrderService {
 
@@ -56,7 +58,7 @@ public interface OutboundOrderService {
      * 按看板标签出库（多选模式）
      * 自动根据物料编码+供应商名称匹配出库单明细行，校验数量不超过计划
      */
-    OutboundOrderDetailResponse issueByLabels(Long orderId, List<Long> labelIds, String operator);
+    OutboundOrderDetailResponse issueByLabels(Long orderId, List<Long> labelIds, Map<Long, Integer> labelIssueQtys, String operator);
 
     /**
      * 获取出库单已出库的看板标签列表（供退库选择）

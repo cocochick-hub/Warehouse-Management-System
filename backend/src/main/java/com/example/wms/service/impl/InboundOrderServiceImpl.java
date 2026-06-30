@@ -591,12 +591,18 @@ public class InboundOrderServiceImpl implements InboundOrderService {
         return Math.min(remainingQty, packagingCapacity);
     }
 
-    /** 计算指定物料+供应商已封存的看板总数 */
-    private int calculateSealedQtyByMaterial(String materialCode, String supplierName) {
-        return inboundKanbanLabelRepository
-                .findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+    private int calculateSealedQtyByMaterial(String materialCode, String supplierName, String warehouseArea) {
+        String area = trimToNull(warehouseArea);
+        List<InboundKanbanLabel> labels = area == null
+                ? inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+                : inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndWarehouseAreaAndSealedTrue(
+                        materialCode, supplierName, area);
+        return labels
                 .stream()
-                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .mapToInt(label -> {
+                    int frozenQty = safeInt(label.getFrozenQty());
+                    return frozenQty > 0 ? frozenQty : safeInt(label.getLabelQty());
+                })
                 .sum();
     }
 
@@ -839,17 +845,20 @@ public class InboundOrderServiceImpl implements InboundOrderService {
 
         return stocks.stream()
                 .map(stock -> {
-                    int sealedQty = calculateSealedQtyByMaterial(stock.getMaterialCode(), stock.getSupplier());
+                    int sealedQty = calculateSealedQtyByMaterial(
+                            stock.getMaterialCode(), stock.getSupplier(), stock.getWarehouseArea());
+                    int onHandQty = safeInt(stock.getOnHandQty());
                     int availableQty = Math.max(safeInt(stock.getOnHandQty()) - sealedQty, 0);
                     return new InventoryStockDTO(
                             stock.getMaterialCode(),
                             stock.getMaterialName(),
                             stock.getSupplier(),
-                            availableQty,
+                            onHandQty,
                             stock.getLastInboundDocNo(),
                             stock.getLastInboundAt(),
                             stock.getTransferStatus(),
-                            stock.getWarehouseArea()
+                            stock.getWarehouseArea(),
+                            availableQty
                     );
                 })
                 .collect(Collectors.toList());
@@ -907,14 +916,9 @@ public class InboundOrderServiceImpl implements InboundOrderService {
     }
 
     private int calculateAvailableQty(InboundKanbanLabel label) {
-        List<OutboundHistory> consumed = outboundHistoryRepository
-                .findBySourceDetailId(label.getInboundOrderDetailId());
-        int consumedQty = consumed.stream()
-                .filter(h -> !"已退库".equals(h.getStatus()))
-                .mapToInt(h -> safeInt(h.getIssueQty()))
-                .sum();
         int labelQty = safeInt(label.getLabelQty());
-        return Math.max(labelQty - consumedQty, 0);
+        int frozenQty = safeInt(label.getFrozenQty());
+        return Math.max(labelQty - frozenQty, 0);
     }
 
     private int safeInt(Integer value) {

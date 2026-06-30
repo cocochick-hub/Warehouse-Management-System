@@ -5,10 +5,8 @@ import com.example.wms.dto.inbound.InventoryStockDTO;
 import com.example.wms.dto.inventory.InventoryStockPageResponse;
 import com.example.wms.entity.InboundKanbanLabel;
 import com.example.wms.entity.InventoryStock;
-import com.example.wms.entity.OutboundHistory;
 import com.example.wms.repository.InboundKanbanLabelRepository;
 import com.example.wms.repository.InventoryStockRepository;
-import com.example.wms.repository.OutboundHistoryRepository;
 import com.example.wms.service.InventoryService;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
@@ -27,14 +25,11 @@ public class InventoryServiceImpl implements InventoryService {
 
     private final InventoryStockRepository inventoryStockRepository;
     private final InboundKanbanLabelRepository inboundKanbanLabelRepository;
-    private final OutboundHistoryRepository outboundHistoryRepository;
 
     public InventoryServiceImpl(InventoryStockRepository inventoryStockRepository,
-                                InboundKanbanLabelRepository inboundKanbanLabelRepository,
-                                OutboundHistoryRepository outboundHistoryRepository) {
+                                InboundKanbanLabelRepository inboundKanbanLabelRepository) {
         this.inventoryStockRepository = inventoryStockRepository;
         this.inboundKanbanLabelRepository = inboundKanbanLabelRepository;
-        this.outboundHistoryRepository = outboundHistoryRepository;
     }
 
     @Override
@@ -48,17 +43,19 @@ public class InventoryServiceImpl implements InventoryService {
                 buildSpecification(materialCode, materialName, supplier, transferStatus, warehouseArea), pageable);
         List<InventoryStockDTO> records = resultPage.getContent().stream()
                 .map(item -> {
-                    int sealedQty = calculateSealedQty(item.getMaterialCode(), item.getSupplier());
-                    int availableQty = Math.max(safeInt(item.getOnHandQty()) - sealedQty, 0);
+                    int onHandQty = safeInt(item.getOnHandQty());
+                    int sealedQty = calculateSealedQty(item.getMaterialCode(), item.getSupplier(), item.getWarehouseArea());
+                    int availableQty = Math.max(onHandQty - sealedQty, 0);
                     return new InventoryStockDTO(
                             item.getMaterialCode(),
                             item.getMaterialName(),
                             item.getSupplier(),
-                            availableQty,
+                            onHandQty,
                             item.getLastInboundDocNo(),
                             item.getLastInboundAt(),
                             item.getTransferStatus(),
-                            item.getWarehouseArea()
+                            item.getWarehouseArea(),
+                            availableQty
                     );
                 })
                 .collect(Collectors.toList());
@@ -96,9 +93,13 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     @Override
-    public List<InboundKanbanLabelDTO> listLabelsByMaterial(String materialCode, String supplier) {
-        List<InboundKanbanLabel> labels = inboundKanbanLabelRepository
-                .findByMaterialCodeAndSupplierNameOrderByCreatedAtAsc(materialCode.trim(), supplier.trim());
+    public List<InboundKanbanLabelDTO> listLabelsByMaterial(String materialCode, String supplier, String warehouseArea) {
+        String area = trimToNull(warehouseArea);
+        List<InboundKanbanLabel> labels = area == null
+                ? inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameOrderByCreatedAtAsc(
+                        materialCode.trim(), supplier.trim())
+                : inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndWarehouseAreaOrderByCreatedAtAsc(
+                        materialCode.trim(), supplier.trim(), area);
         return labels.stream()
                 .map(this::toKanbanLabelDTO)
                 .collect(Collectors.toList());
@@ -135,23 +136,26 @@ public class InventoryServiceImpl implements InventoryService {
     }
 
     private int calculateAvailableQty(InboundKanbanLabel label) {
-        List<OutboundHistory> consumed = outboundHistoryRepository
-                .findBySourceDetailId(label.getInboundOrderDetailId());
-        int consumedQty = consumed.stream()
-                .filter(h -> !"已退库".equals(h.getStatus()))
-                .mapToInt(h -> safeInt(h.getIssueQty()))
-                .sum();
         int labelQty = safeInt(label.getLabelQty());
-        return Math.max(labelQty - consumedQty, 0);
+        int frozenQty = safeInt(label.getFrozenQty());
+        return Math.max(labelQty - frozenQty, 0);
     }
 
-    /** 计算指定物料+供应商已封存的看板总数 */
-    private int calculateSealedQty(String materialCode, String supplierName) {
-        return inboundKanbanLabelRepository
-                .findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+    private int calculateSealedQty(String materialCode, String supplierName, String warehouseArea) {
+        String area = trimToNull(warehouseArea);
+        List<InboundKanbanLabel> sealedLabels = area == null
+                ? inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndSealedTrue(materialCode, supplierName)
+                : inboundKanbanLabelRepository.findByMaterialCodeAndSupplierNameAndWarehouseAreaAndSealedTrue(
+                        materialCode, supplierName, area);
+        return sealedLabels
                 .stream()
-                .mapToInt(label -> safeInt(label.getLabelQty()))
+                .mapToInt(this::sealedQtyOf)
                 .sum();
+    }
+
+    private int sealedQtyOf(InboundKanbanLabel label) {
+        int frozenQty = safeInt(label.getFrozenQty());
+        return frozenQty > 0 ? frozenQty : safeInt(label.getLabelQty());
     }
 
     private int safeInt(Integer value) {

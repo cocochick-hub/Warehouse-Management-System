@@ -316,8 +316,8 @@ ON DUPLICATE KEY UPDATE area_name = VALUES(area_name);
 -- ============================================================================
 CREATE TABLE IF NOT EXISTS package_transfer (
     id                      BIGINT AUTO_INCREMENT PRIMARY KEY COMMENT '主键ID',
-    source_kanban_no        VARCHAR(50)  NOT NULL COMMENT '源看板号',
-    target_kanban_no        VARCHAR(50)  NOT NULL COMMENT '目标看板号（新看板号）',
+    source_kanban_no        VARCHAR(100) NOT NULL COMMENT '源看板号',
+    target_kanban_no        VARCHAR(100) NOT NULL COMMENT '目标看板号（新看板号）',
     transfer_qty            INT          NOT NULL COMMENT '转移数量',
     source_qty_before       INT          NOT NULL COMMENT '转移前源看板可用数量',
     source_qty_after        INT          NOT NULL COMMENT '转移后源看板可用数量',
@@ -333,6 +333,11 @@ CREATE TABLE IF NOT EXISTS package_transfer (
     KEY idx_package_transfer_target (target_kanban_no),
     KEY idx_package_transfer_created (created_at)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COMMENT='转包操作记录表';
+
+ALTER TABLE package_transfer
+    MODIFY COLUMN source_kanban_no VARCHAR(100) NOT NULL COMMENT '源看板号';
+ALTER TABLE package_transfer
+    MODIFY COLUMN target_kanban_no VARCHAR(100) NOT NULL COMMENT '目标看板号（新看板号）';
 
 -- ============================================================================
 -- 14. AI 预警记录表

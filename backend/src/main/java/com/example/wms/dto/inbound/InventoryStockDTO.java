@@ -19,4 +19,12 @@ public class InventoryStockDTO {
     private LocalDateTime lastInboundAt;
     private String transferStatus;
     private String warehouseArea;
+    private Integer availableQty;
+
+    public InventoryStockDTO(String materialCode, String materialName, String supplier, Integer onHandQty,
+                             String lastInboundDocNo, LocalDateTime lastInboundAt,
+                             String transferStatus, String warehouseArea) {
+        this(materialCode, materialName, supplier, onHandQty, lastInboundDocNo, lastInboundAt,
+                transferStatus, warehouseArea, onHandQty);
+    }
 }

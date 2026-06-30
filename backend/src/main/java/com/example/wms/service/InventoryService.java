@@ -9,5 +9,5 @@ public interface InventoryService {
 
     InventoryStockPageResponse listStocks(String materialCode, String materialName, String supplier, String transferStatus, String warehouseArea, Integer page, Integer size);
 
-    List<InboundKanbanLabelDTO> listLabelsByMaterial(String materialCode, String supplier);
+    List<InboundKanbanLabelDTO> listLabelsByMaterial(String materialCode, String supplier, String warehouseArea);
 }

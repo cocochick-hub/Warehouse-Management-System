@@ -80,7 +80,7 @@ public class OutboundOrderController {
             @Valid @RequestBody OutboundIssueByLabelRequest request
     ) {
         OutboundOrderDetailResponse data = outboundOrderService.issueByLabels(
-                id, request.getLabelIds(), currentUsername());
+                id, request.getLabelIds(), request.getLabelIssueQtys(), currentUsername());
         return ApiResult.success("出库成功", data);
     }
 
