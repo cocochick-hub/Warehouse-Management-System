@@ -137,7 +137,7 @@ public class AuditLogAspectTest {
 
         @Test
         @DisplayName("PUT /api/basic/warehouse-areas/{id} 更新库区，记录 action=UPDATE")
-        @WithMockUser(username = "operator", roles = {"operator"})
+        @WithMockUser(username = "manager", roles = {"manager"})
         void putWarehouseArea_shouldLogUpdate() throws Exception {
             cleanAuditLogs();
 
@@ -168,7 +168,7 @@ public class AuditLogAspectTest {
 
             assertNotNull(updateLog, "应有 UPDATE 类型的审计日志");
             assertEquals("BasicData", updateLog.getTarget());
-            assertEquals("operator", updateLog.getUsername());
+            assertEquals("manager", updateLog.getUsername());
         }
     }
 

@@ -1117,7 +1117,7 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
 
     @Override
     @Transactional
-    public OutboundOrderDetailResponse issueByLabels(Long orderId, List<Long> labelIds, String operator) {
+    public OutboundOrderDetailResponse issueByLabels(Long orderId, List<Long> labelIds, Map<Long, Integer> labelIssueQtys, String operator) {
         if (labelIds == null || labelIds.isEmpty()) {
             throw new IllegalArgumentException("出库看板不能为空");
         }
@@ -1185,7 +1185,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
             OutboundOrderDetail detail = detailMap.get(entry.getKey());
             int totalSelectedQty = entry.getValue().stream()
-                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+                    .mapToInt(l -> {
+                        Integer override = labelIssueQtys != null ? labelIssueQtys.get(l.getId()) : null;
+                        return override != null ? override : safeInt(l.getLabelQty());
+                    }).sum();
             int pendingQty = safeInt(detail.getPlannedQty()) - safeInt(detail.getActualQty());
             if (totalSelectedQty > pendingQty) {
                 throw new IllegalArgumentException(
@@ -1198,7 +1201,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
             OutboundOrderDetail detail = detailMap.get(entry.getKey());
             int totalIssueQty = entry.getValue().stream()
-                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+                    .mapToInt(l -> {
+                        Integer override = labelIssueQtys != null ? labelIssueQtys.get(l.getId()) : null;
+                        return override != null ? override : safeInt(l.getLabelQty());
+                    }).sum();
             List<InventoryStock> areaStocks = inventoryStockRepository
                     .findAllByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName());
             int totalOnHand = areaStocks.stream().mapToInt(s -> safeInt(s.getOnHandQty())).sum();
@@ -1220,7 +1226,8 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
                             .filter(e -> e.getValue().contains(label))
                             .findFirst().get().getKey());
 
-            int issueQty = safeInt(label.getLabelQty());
+            Integer override = labelIssueQtys != null ? labelIssueQtys.get(label.getId()) : null;
+            int issueQty = override != null ? override : safeInt(label.getLabelQty());
             String warehouseArea = defaultIfBlank(label.getWarehouseArea(),
                     defaultIfBlank(detail.getWarehouseArea(), "默认库区"));
 
@@ -1247,7 +1254,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
             OutboundOrderDetail detail = detailMap.get(entry.getKey());
             int totalIssueQty = entry.getValue().stream()
-                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+                    .mapToInt(l -> {
+                        Integer override = labelIssueQtys != null ? labelIssueQtys.get(l.getId()) : null;
+                        return override != null ? override : safeInt(l.getLabelQty());
+                    }).sum();
 
             List<InventoryStock> areaStocks = inventoryStockRepository
                     .findAllByMaterialCodeAndSupplier(detail.getMaterialCode(), detail.getSupplierName());
@@ -1263,9 +1273,16 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
             }
         }
 
-        // 9. 标记看板为已出库
+        // 9. 标记看板状态（部分出库仅扣减可用数量，不标记已出库）
         for (InboundKanbanLabel label : labels) {
-            label.setTransferStatus(TRANSFER_STATUS_ISSUED);
+            Integer override = labelIssueQtys != null ? labelIssueQtys.get(label.getId()) : null;
+            if (override == null || override >= safeInt(label.getLabelQty())) {
+                // 全量出库或未指定数量，标记为已出库
+                label.setTransferStatus(TRANSFER_STATUS_ISSUED);
+            } else {
+                // 部分出库，仅扣减标签可用数量（labelQty 改为剩余数量）
+                label.setLabelQty(safeInt(label.getLabelQty()) - override);
+            }
         }
         inboundKanbanLabelRepository.saveAll(labels);
 
@@ -1273,7 +1290,10 @@ public class OutboundOrderServiceImpl implements OutboundOrderService {
         for (Map.Entry<Long, List<InboundKanbanLabel>> entry : detailLabelsMap.entrySet()) {
             OutboundOrderDetail detail = detailMap.get(entry.getKey());
             int totalIssueQty = entry.getValue().stream()
-                    .mapToInt(l -> safeInt(l.getLabelQty())).sum();
+                    .mapToInt(l -> {
+                        Integer override = labelIssueQtys != null ? labelIssueQtys.get(l.getId()) : null;
+                        return override != null ? override : safeInt(l.getLabelQty());
+                    }).sum();
             detail.setActualQty(safeInt(detail.getActualQty()) + totalIssueQty);
             detail.setUpdatedBy(currentOperator);
             detail.setUpdatedAt(now);
