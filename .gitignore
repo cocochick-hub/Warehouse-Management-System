@@ -35,7 +35,6 @@ logs/
 *.bat
 .run/WmsApplication.run.xml
 
-# Spring Boot local profile (contains real secrets)
 application-local.yml
 
 # Dev iteration documents (internal only)

@@ -17,7 +17,7 @@
 - Vite（构建工具）
 
 ### 后端
-- Java JDK 1.8+
+- Java JDK 17+
 - Spring Boot 2.7.x
 - Spring Security（认证与授权）
 - Spring Data JPA（数据访问）

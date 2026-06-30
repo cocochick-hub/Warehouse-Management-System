@@ -81,7 +81,7 @@ public class AiChatController {
         log.info("api-key:  {}", maskedKey);
         if (apiKey == null || apiKey.isEmpty() || "placeholder".equals(apiKey)) {
             log.error("!!! DeepSeek API Key 无效！");
-            log.error("!!! 请使用 local profile 启动: mvn spring-boot:run -Dspring-boot.run.profiles=local");
+            log.error("!!! 请配置 API Key");
         } else {
             log.info("DeepSeek API Key 配置正常 ✓");
         }
