@@ -9,6 +9,7 @@ import com.example.wms.repository.AiAlertRepository;
 import com.example.wms.repository.InboundOrderDetailRepository;
 import com.example.wms.repository.InventoryStockRepository;
 import com.example.wms.repository.OutboundHistoryRepository;
+import com.example.wms.service.AiAlertService;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -53,16 +54,19 @@ public class AiChatController {
     private final InventoryStockRepository stockRepo;
     private final OutboundHistoryRepository outboundHistoryRepo;
     private final InboundOrderDetailRepository inboundDetailRepo;
+    private final AiAlertService aiAlertService;
 
     public AiChatController(AiAlertRepository alertRepo,
                             InventoryStockRepository stockRepo,
                             OutboundHistoryRepository outboundHistoryRepo,
                             InboundOrderDetailRepository inboundDetailRepo,
+                            AiAlertService aiAlertService,
                             ObjectMapper objectMapper) {
         this.alertRepo = alertRepo;
         this.stockRepo = stockRepo;
         this.outboundHistoryRepo = outboundHistoryRepo;
         this.inboundDetailRepo = inboundDetailRepo;
+        this.aiAlertService = aiAlertService;
         this.objectMapper = objectMapper;
         this.restTemplate = new RestTemplate();
     }
@@ -203,6 +207,20 @@ public class AiChatController {
         result.put("updatedAt", alerts.isEmpty() ? null : alerts.get(0).getCreatedAt());
 
         return ApiResult.success(result);
+    }
+
+    /**
+     * 手动触发全量预警分析（刷新 Dashboard 预警卡片）
+     */
+    @PostMapping("/alerts/refresh")
+    public ApiResult<Map<String, Object>> refreshAlerts() {
+        long start = System.currentTimeMillis();
+        aiAlertService.runFullAnalysis();
+        long elapsed = System.currentTimeMillis() - start;
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", true);
+        result.put("elapsedMs", elapsed);
+        return ApiResult.success("预警分析已完成，耗时 " + elapsed + "ms", result);
     }
 
     /**

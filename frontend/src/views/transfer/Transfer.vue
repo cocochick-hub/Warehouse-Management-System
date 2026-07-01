@@ -234,7 +234,7 @@
 </template>
 
 <script setup>
-import { onMounted, reactive, ref } from 'vue'
+import { onMounted, reactive, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import PageContainer from '@/components/PageContainer.vue'
@@ -283,6 +283,16 @@ const transferResult = ref({})
 
 onMounted(() => {
   fetchKanbans()
+})
+
+// 切换 tab 时自动加载对应数据
+watch(activeTab, (tab) => {
+  if (tab === 'history') {
+    historyPagination.page = 1
+    fetchHistory()
+  } else if (tab === 'create') {
+    fetchKanbans()
+  }
 })
 
 // ========== 看板列表操作 ==========

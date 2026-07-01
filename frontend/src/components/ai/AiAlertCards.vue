@@ -12,9 +12,14 @@
                 {{ alerts.shortageCount }}
               </el-tag>
             </div>
-            <el-button text type="primary" @click="$router.push('/ai/chat')">
-              <el-icon><ChatDotRound /></el-icon>AI 分析
-            </el-button>
+            <div class="header-actions">
+              <el-button text type="primary" @click="$router.push('/ai/chat')">
+                <el-icon><ChatDotRound /></el-icon>AI 分析
+              </el-button>
+              <el-button text type="primary" @click="refreshAlerts" :loading="refreshing">
+                <el-icon><Refresh /></el-icon>刷新
+              </el-button>
+            </div>
           </div>
         </template>
 
@@ -62,9 +67,14 @@
                 {{ alerts.deadStockCount }}
               </el-tag>
             </div>
-            <el-button text type="primary" @click="$router.push('/ai/chat')">
-              <el-icon><ChatDotRound /></el-icon>AI 分析
-            </el-button>
+            <div class="header-actions">
+              <el-button text type="primary" @click="$router.push('/ai/chat')">
+                <el-icon><ChatDotRound /></el-icon>AI 分析
+              </el-button>
+              <el-button text type="primary" @click="refreshAlerts" :loading="refreshing">
+                <el-icon><Refresh /></el-icon>刷新
+              </el-button>
+            </div>
           </div>
         </template>
 
@@ -105,11 +115,13 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import { getLatestAlertsApi } from '@/api/ai'
+import { getLatestAlertsApi, refreshAlertsApi } from '@/api/ai'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 
 const loading = ref(true)
+const refreshing = ref(false)
 const alerts = reactive({
   shortages: [],
   deadStocks: [],
@@ -148,6 +160,19 @@ function loadAlerts() {
   })
 }
 
+async function refreshAlerts() {
+  refreshing.value = true
+  try {
+    await refreshAlertsApi()
+    ElMessage.success('预警分析已刷新')
+    await loadAlerts()
+  } catch {
+    ElMessage.error('刷新失败，请稍后重试')
+  } finally {
+    refreshing.value = false
+  }
+}
+
 onMounted(() => {
   loadAlerts()
 })
@@ -171,6 +196,12 @@ onMounted(() => {
   display: flex;
   align-items: center;
   gap: 6px;
+}
+
+.header-actions {
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .loading-wrap {

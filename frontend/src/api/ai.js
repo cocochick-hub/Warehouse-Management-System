@@ -9,6 +9,11 @@ export function getLatestAlertsApi(alertType) {
   return request.get('/ai/alerts/latest', { params: { alertType } })
 }
 
+/** 手动刷新预警分析 */
+export function refreshAlertsApi() {
+  return request.post('/ai/alerts/refresh')
+}
+
 /** AI 对话 — 发送消息给 DeepSeek */
 export function chatApi(messages) {
   return request.post('/ai/chat', { messages })
