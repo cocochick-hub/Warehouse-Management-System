@@ -46,7 +46,7 @@ public class DashboardServiceImpl implements DashboardService {
     public DashboardDTO getDashboardData() {
         int pendingInbound = inboundOrderRepository.countByStatusNot("已完成");
         int pendingOutbound = outboundOrderRepository.countByStatusNot("已完成");
-        int lowStockAlert = inventoryStockRepository.countByOnHandQty(0);
+        int lowStockAlert = 0;
         int totalMaterials = (int) materialInfoRepository.count();
 
         List<InboundOrder> inboundOrders = inboundOrderRepository.findByStatusNotOrderByCreatedAtDesc("已完成");
@@ -124,7 +124,7 @@ public class DashboardServiceImpl implements DashboardService {
             healthPercent = (int) ((double) normalCount / totalCount * 100);
         }
 
-        DashboardDTO dto = new DashboardDTO(pendingInbound, pendingOutbound, lowStockAlert, totalMaterials, pendingTasks,
+        DashboardDTO dto = new DashboardDTO(pendingInbound, pendingOutbound, lowAlertCount, totalMaterials, pendingTasks,
                 healthPercent, normalCount, lowAlertCount, highAlertCount);
         return dto;
     }
